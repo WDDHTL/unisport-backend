@@ -3,12 +3,16 @@ package com.unisport.service.impl;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.unisport.common.BusinessException;
+import com.unisport.config.JwtProperties;
+import com.unisport.dto.LoginDTO;
 import com.unisport.dto.RegisterDTO;
 import com.unisport.entity.Student;
 import com.unisport.entity.User;
 import com.unisport.mapper.StudentMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.AuthService;
+import com.unisport.util.JwtUtil;
+import com.unisport.vo.LoginVO;
 import com.unisport.vo.RegisterVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserMapper userMapper;
     private final StudentMapper studentMapper;
+    private final JwtProperties jwtProperties;
 
     /**
      * 用户注册
@@ -185,6 +190,149 @@ public class AuthServiceImpl implements AuthService {
                 .department(user.getDepartment())
                 .studentId(user.getStudentId())
                 .createdAt(user.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * 用户登录
+     * 
+     * 业务流程：
+     * 1. 根据账号查询用户信息
+     * 2. 验证用户是否存在
+     * 3. 验证账号状态是否正常（未被禁用）
+     * 4. 使用BCrypt验证密码是否正确
+     * 5. 生成JWT Token
+     * 6. 构建并返回登录响应（Token + 用户基本信息）
+     *
+     * 错误码说明：
+     * - 40003: 账号或密码错误（账号不存在或密码错误）
+     * - 40004: 账号已被禁用
+     * - 400: 参数校验失败（账号或密码为空）
+     *
+     * @param loginDTO 登录请求数据
+     * @return 登录成功信息（包含Token和用户基本信息）
+     * @throws BusinessException 登录失败时抛出，错误信息会通过GlobalExceptionHandler返回给前端
+     */
+    @Override
+    public LoginVO login(LoginDTO loginDTO) {
+        log.info("开始处理用户登录，账号：{}", loginDTO.getAccount());
+
+        try {
+            // 1. 根据账号查询用户信息
+            User user = getUserByAccount(loginDTO.getAccount());
+
+            // 2. 验证用户是否存在
+            if (user == null) {
+                log.warn("登录失败：账号不存在，账号：{}", loginDTO.getAccount());
+                throw new BusinessException(40003, "账号或密码错误，请检查后重试");
+            }
+
+            // 3. 验证账号状态是否正常
+            validateAccountStatus(user);
+
+            // 4. 验证密码是否正确
+            validatePassword(loginDTO.getPassword(), user.getPassword(), loginDTO.getAccount());
+
+            // 5. 生成JWT Token
+            String token = generateToken(user);
+
+            // 6. 构建并返回登录响应
+            LoginVO loginVO = buildLoginVO(token, user);
+
+            log.info("用户登录成功，用户ID：{}，账号：{}", user.getId(), user.getAccount());
+            return loginVO;
+            
+        } catch (BusinessException e) {
+            // 业务异常直接抛出，由全局异常处理器处理
+            throw e;
+        } catch (Exception e) {
+            // 其他未知异常
+            log.error("登录过程发生异常，账号：{}", loginDTO.getAccount(), e);
+            throw new BusinessException(50000, "登录失败，系统异常，请稍后重试");
+        }
+    }
+
+    /**
+     * 根据账号查询用户信息
+     * 
+     * @param account 账号
+     * @return 用户实体，如果不存在则返回null
+     */
+    private User getUserByAccount(String account) {
+        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(User::getAccount, account);
+        return userMapper.selectOne(queryWrapper);
+    }
+
+    /**
+     * 验证账号状态是否正常
+     * 
+     * @param user 用户实体
+     * @throws BusinessException 40004-账号已被禁用
+     */
+    private void validateAccountStatus(User user) {
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            log.warn("登录失败：账号已被禁用，账号：{}，状态：{}", user.getAccount(), user.getStatus());
+            throw new BusinessException(40004, "您的账号已被禁用，如有疑问请联系管理员");
+        }
+    }
+
+    /**
+     * 验证密码是否正确
+     * 
+     * 使用BCrypt算法验证明文密码与加密密码是否匹配
+     *
+     * @param rawPassword 明文密码
+     * @param encodedPassword 加密密码
+     * @param account 账号（用于日志记录）
+     * @throws BusinessException 40003-密码错误
+     */
+    private void validatePassword(String rawPassword, String encodedPassword, String account) {
+        boolean isPasswordCorrect = BCrypt.checkpw(rawPassword, encodedPassword);
+        if (!isPasswordCorrect) {
+            log.warn("登录失败：密码错误，账号：{}", account);
+            throw new BusinessException(40003, "账号或密码错误，请检查后重试");
+        }
+    }
+
+    /**
+     * 生成JWT Token
+     * 
+     * 将用户ID和账号信息编码到Token中
+     *
+     * @param user 用户实体
+     * @return JWT Token字符串
+     */
+    private String generateToken(User user) {
+        String token = JwtUtil.generateToken(
+                user.getId(),
+                user.getAccount(),
+                jwtProperties.getSecret(),
+                jwtProperties.getExpiration()
+        );
+        log.debug("JWT Token生成成功，用户ID：{}", user.getId());
+        return token;
+    }
+
+    /**
+     * 构建登录响应对象
+     * 
+     * @param token JWT Token
+     * @param user 用户实体
+     * @return 登录响应VO
+     */
+    private LoginVO buildLoginVO(String token, User user) {
+        // 构建用户基本信息
+        LoginVO.UserInfo userInfo = LoginVO.UserInfo.builder()
+                .id(user.getId())
+                .nickname(user.getNickname())
+                .avatar(user.getAvatar())
+                .build();
+
+        // 构建登录响应
+        return LoginVO.builder()
+                .token(token)
+                .user(userInfo)
                 .build();
     }
 }

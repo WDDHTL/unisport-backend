@@ -1,6 +1,8 @@
 package com.unisport.service;
 
+import com.unisport.dto.LoginDTO;
 import com.unisport.dto.RegisterDTO;
+import com.unisport.vo.LoginVO;
 import com.unisport.vo.RegisterVO;
 
 /**
@@ -24,4 +26,20 @@ public interface AuthService {
      * @return 注册成功的用户信息
      */
     RegisterVO register(RegisterDTO registerDTO);
+
+    /**
+     * 用户登录
+     * 
+     * 登录流程：
+     * 1. 根据账号查询用户信息
+     * 2. 验证用户是否存在
+     * 3. 验证账号状态是否正常
+     * 4. 验证密码是否正确（BCrypt比对）
+     * 5. 生成JWT Token
+     * 6. 返回Token和用户基本信息
+     *
+     * @param loginDTO 登录请求数据
+     * @return 登录成功信息（Token和用户信息）
+     */
+    LoginVO login(LoginDTO loginDTO);
 }

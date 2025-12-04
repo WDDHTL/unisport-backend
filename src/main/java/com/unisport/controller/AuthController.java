@@ -1,8 +1,10 @@
 package com.unisport.controller;
 
 import com.unisport.common.Result;
+import com.unisport.dto.LoginDTO;
 import com.unisport.dto.RegisterDTO;
 import com.unisport.service.AuthService;
+import com.unisport.vo.LoginVO;
 import com.unisport.vo.RegisterVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,5 +52,30 @@ public class AuthController {
         
         log.info("用户注册成功，用户ID：{}，账号：{}", registerVO.getId(), registerVO.getAccount());
         return Result.success("注册成功", registerVO);
+    }
+
+    /**
+     * 用户登录接口
+     * 
+     * 接口说明：
+     * - 用户通过账号和密码登录
+     * - 密码使用BCrypt算法验证
+     * - 登录成功后返回JWT Token和用户基本信息
+     * - Token默认7天有效，前端需存储在localStorage中
+     * - 后续请求需在Header中携带：Authorization: Bearer <token>
+     *
+     * @param loginDTO 登录请求参数
+     * @return 登录成功信息（Token和用户基本信息）
+     */
+    @PostMapping("/login")
+    @Operation(summary = "用户登录", description = "用户登录获取JWT Token")
+    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {
+        log.info("收到用户登录请求，账号：{}", loginDTO.getAccount());
+        
+        // 调用服务层处理登录逻辑
+        LoginVO loginVO = authService.login(loginDTO);
+        
+        log.info("用户登录成功，用户ID：{}，账号：{}", loginVO.getUser().getId(), loginDTO.getAccount());
+        return Result.success("登录成功", loginVO);
     }
 }
