@@ -1,0 +1,62 @@
+package com.unisport.controller;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.common.Result;
+import com.unisport.dto.MatchQueryDTO;
+import com.unisport.service.MatchService;
+import com.unisport.vo.MatchVO;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * 比赛控制器
+ *
+ * @author UniSport Team
+ */
+@Slf4j
+@RestController
+@RequestMapping("/matches")
+@RequiredArgsConstructor
+@Tag(name = "赛事模块", description = "比赛相关接口")
+public class MatchController {
+
+    private final MatchService matchService;
+
+    /**
+     * 获取比赛列表
+     *
+     * @param categoryCode 运动分类代码（可选，默认all）
+     * @param status 比赛状态（可选，默认all）
+     * @param current 页码（可选，默认1）
+     * @param size 每页大小（可选，默认10）
+     * @return 比赛分页数据
+     */
+    @GetMapping
+    @Operation(summary = "获取比赛列表", description = "支持按分类、状态筛选，分页查询")
+    public Result<Page<MatchVO>> getMatchList(
+        @Parameter(description = "运动分类代码", example = "football") 
+        @RequestParam(required = false, defaultValue = "all") String categoryCode,
+        
+        @Parameter(description = "比赛状态：upcoming/live/finished/all", example = "upcoming") 
+        @RequestParam(required = false, defaultValue = "all") String status,
+        
+        @Parameter(description = "页码", example = "1") 
+        @RequestParam(required = false, defaultValue = "1") Integer current,
+        
+        @Parameter(description = "每页大小", example = "10") 
+        @RequestParam(required = false, defaultValue = "10") Integer size
+    ) {
+        MatchQueryDTO queryDTO = new MatchQueryDTO();
+        queryDTO.setCategoryCode(categoryCode);
+        queryDTO.setStatus(status);
+        queryDTO.setCurrent(current);
+        queryDTO.setSize(size);
+
+        Page<MatchVO> page = matchService.getMatchList(queryDTO);
+        return Result.success(page);
+    }
+}
