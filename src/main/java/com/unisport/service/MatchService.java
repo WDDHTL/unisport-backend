@@ -2,6 +2,7 @@ package com.unisport.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.dto.MatchQueryDTO;
+import com.unisport.vo.MatchDetailVO;
 import com.unisport.vo.MatchVO;
 
 /**
@@ -18,4 +19,12 @@ public interface MatchService {
      * @return 比赛分页数据
      */
     Page<MatchVO> getMatchList(MatchQueryDTO queryDTO);
+
+    /**
+     * 获取比赛详情
+     *
+     * @param id 比赛ID
+     * @return 比赛详情
+     */
+    MatchDetailVO getMatchDetail(Long id);
 }

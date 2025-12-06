@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.common.Result;
 import com.unisport.dto.MatchQueryDTO;
 import com.unisport.service.MatchService;
+import com.unisport.vo.MatchDetailVO;
 import com.unisport.vo.MatchVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -58,5 +59,27 @@ public class MatchController {
 
         Page<MatchVO> page = matchService.getMatchList(queryDTO);
         return Result.success(page);
+    }
+
+    /**
+     * 获取比赛详情
+     *
+     * @param id 比赛ID
+     * @return 比赛详情
+     */
+    @GetMapping("/{id}")
+    @Operation(summary = "获取比赛详情", description = "查看比赛的详细信息、球员阵容和比赛事件")
+    public Result<MatchDetailVO> getMatchDetail(
+        @Parameter(description = "比赛ID", example = "1")
+        @PathVariable Long id
+    ) {
+        log.info("请求查询比赛详情，ID：{}", id);
+        MatchDetailVO detail = matchService.getMatchDetail(id);
+        
+        if (detail == null) {
+            return Result.error(40401, "比赛不存在");
+        }
+        
+        return Result.success(detail);
     }
 }
