@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 比赛控制器
  *
@@ -82,4 +84,5 @@ public class MatchController {
         
         return Result.success(detail);
     }
+
 }
