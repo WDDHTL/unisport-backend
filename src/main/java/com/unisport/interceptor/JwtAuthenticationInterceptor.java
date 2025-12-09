@@ -22,11 +22,17 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String requestUri = request.getRequestURI();
 
+        // OPTIONS 预检请求直接放行
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         if (isWhitelist(requestUri)) {
             return true;
         }
 
         String authHeader = request.getHeader("Authorization");
+        log.info("收到请求 - URI: {}, Method: {}, Authorization: {}", requestUri, request.getMethod(), authHeader != null ? "存在" : "不存在");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("未登录或Authorization头部缺失，请求路径：{}", requestUri);
             throw new BusinessException(40101, "您尚未登录，请先登录");

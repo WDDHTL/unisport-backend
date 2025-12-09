@@ -2,15 +2,10 @@ package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.common.UserContext;
 import com.unisport.dto.MatchQueryDTO;
-import com.unisport.entity.Category;
-import com.unisport.entity.Match;
-import com.unisport.entity.MatchEvent;
-import com.unisport.entity.TeamMember;
-import com.unisport.mapper.CategoryMapper;
-import com.unisport.mapper.MatchEventMapper;
-import com.unisport.mapper.MatchMapper;
-import com.unisport.mapper.TeamMemberMapper;
+import com.unisport.entity.*;
+import com.unisport.mapper.*;
 import com.unisport.service.MatchService;
 import com.unisport.vo.MatchDetailVO;
 import com.unisport.vo.MatchVO;
@@ -37,6 +32,8 @@ public class MatchServiceImpl implements MatchService {
     private final CategoryMapper categoryMapper;
     private final TeamMemberMapper teamMemberMapper;
     private final MatchEventMapper matchEventMapper;
+    private final UserMapper userMapper;
+    private final LeagueMapper leagueMapper;
 
     @Override
     public Page<MatchVO> getMatchList(MatchQueryDTO queryDTO) {
@@ -44,6 +41,11 @@ public class MatchServiceImpl implements MatchService {
 
         // 构建分页对象
         Page<Match> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
+        // 获取用户信息
+        Long userId = UserContext.getUserId();
+        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getId, userId));
+        Long schoolId = user.getSchoolId();
+
 
         // 构建查询条件
         LambdaQueryWrapper<Match> queryWrapper = new LambdaQueryWrapper<>();
@@ -54,14 +56,25 @@ public class MatchServiceImpl implements MatchService {
                 new LambdaQueryWrapper<Category>().eq(Category::getCode, queryDTO.getCategoryCode())
             );
             if (category != null) {
-                queryWrapper.eq(Match::getCategoryId, category.getId());
+//                queryWrapper.eq(Match::getCategoryId, category.getId());
+                // 查看用户该校的联赛
+                League league = leagueMapper.selectOne(
+                        new LambdaQueryWrapper<League>().eq(League::getSchoolId, schoolId)
+                                .eq(League::getCategoryId, category.getId())
+                );
+                if (league != null) {
+                    queryWrapper.eq(Match::getLeagueId, league.getId());
+                }
             }
         }
+
+
 
         // 按状态筛选
         if (!"all".equals(queryDTO.getStatus())) {
             queryWrapper.eq(Match::getStatus, queryDTO.getStatus());
         }
+
 
         // 按比赛时间倒序
         queryWrapper.orderByDesc(Match::getMatchTime);
