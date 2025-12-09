@@ -164,6 +164,7 @@ public class AuthServiceImpl implements AuthService {
         user.setNickname(registerDTO.getAccount());
         
         // 设置学校和学院信息
+        user.setSchoolId(registerDTO.getSchoolId());
         user.setSchool(registerDTO.getSchool());
         user.setDepartment(registerDTO.getDepartment());
         user.setStudentId(registerDTO.getStudentId());

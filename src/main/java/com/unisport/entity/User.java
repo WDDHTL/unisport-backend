@@ -21,6 +21,8 @@ public class User implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
+    private Long schoolId;
+
     /**
      * 账号（学号/手机号）
      */
