@@ -31,6 +31,8 @@ public class Post implements Serializable {
      */
     private Integer categoryId;
 
+    private Long schoolId;
+
     /**
      * 帖子内容
      */
@@ -54,7 +56,7 @@ public class Post implements Serializable {
     /**
      * 状态：1-正常, 0-删除
      */
-    private Integer status;
+    private Integer deleted;
 
     /**
      * 创建时间
@@ -68,9 +70,4 @@ public class Post implements Serializable {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    /**
-     * 逻辑删除
-     */
-    @TableLogic
-    private Integer deleted;
 }
