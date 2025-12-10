@@ -1,6 +1,7 @@
 package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.unisport.common.UserContext;
 import com.unisport.entity.*;
 import com.unisport.mapper.*;
 import com.unisport.service.PlayerService;
@@ -37,12 +38,20 @@ public class PlayerServiceImpl implements PlayerService {
 
     private final TeamMapper teamMapper;
 
+    private final UserMapper userMapper;
+
     @Override
     public List<PlayerStatsVO> getStats(String categoryCode, Integer year) {
         log.info("查询球员榜，分类：{}，年份：{}", categoryCode, year);
         if (year == null){
             year = LocalDate.now().getYear();
         }
+
+        // 获取用户学校
+        Long userId = UserContext.getUserId();
+        User user = userMapper.selectById(userId);
+        Long schoolId = user.getSchoolId();
+
         try {
             // 根据分类代码查询分类ID
             Category category = categoryMapper.selectOne(
@@ -56,11 +65,12 @@ public class PlayerServiceImpl implements PlayerService {
                 return new java.util.ArrayList<>();
             }
 
-            // 查询该分类在指定年份的联赛
+            // 查询该分类在指定年份、指定学校的联赛
             League league = leagueMapper.selectOne(
                     new LambdaQueryWrapper<League>()
                             .eq(League::getCategoryId, category.getId())
                             .eq(League::getYear, year)
+                            .eq(League::getSchoolId, schoolId)
                             .orderByDesc(League::getCreatedAt)
                             .last("LIMIT 1")
             );

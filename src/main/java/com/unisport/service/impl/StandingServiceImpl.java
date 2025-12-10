@@ -1,12 +1,15 @@
 package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.unisport.common.UserContext;
 import com.unisport.entity.Category;
 import com.unisport.entity.League;
 import com.unisport.entity.Standing;
+import com.unisport.entity.User;
 import com.unisport.mapper.CategoryMapper;
 import com.unisport.mapper.LeagueMapper;
 import com.unisport.mapper.StandingMapper;
+import com.unisport.mapper.UserMapper;
 import com.unisport.service.StandingService;
 import com.unisport.vo.StandingVO;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +34,7 @@ public class StandingServiceImpl implements StandingService {
     private final StandingMapper standingMapper;
     private final CategoryMapper categoryMapper;
     private final LeagueMapper leagueMapper;
+    private final UserMapper userMapper;
 
     @Override
     public List<StandingVO> getStandings(String categoryCode, Integer year) {
@@ -40,6 +44,11 @@ public class StandingServiceImpl implements StandingService {
         if (year == null) {
             year = LocalDate.now().getYear();
         }
+
+        // 获取用户学校
+        Long userId = UserContext.getUserId();
+        User user = userMapper.selectById(userId);
+        Long schoolId = user.getSchoolId();
 
         try {
             // 根据分类代码查询分类ID
@@ -54,11 +63,12 @@ public class StandingServiceImpl implements StandingService {
                 return new java.util.ArrayList<>();
             }
 
-            // 查询该分类在指定年份的联赛
+            // 查询该分类在指定年份、指定学校的联赛
             League league = leagueMapper.selectOne(
                 new LambdaQueryWrapper<League>()
                     .eq(League::getCategoryId, category.getId())
                     .eq(League::getYear, year)
+                    .eq(League::getSchoolId, schoolId)
                     .orderByDesc(League::getCreatedAt)
                     .last("LIMIT 1")
             );
