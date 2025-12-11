@@ -41,8 +41,8 @@ public class PlayerServiceImpl implements PlayerService {
     private final UserMapper userMapper;
 
     @Override
-    public List<PlayerStatsVO> getStats(String categoryCode, Integer year) {
-        log.info("查询球员榜，分类：{}，年份：{}", categoryCode, year);
+    public List<PlayerStatsVO> getStats(Integer categoryId, Integer year) {
+        log.info("查询球员榜，分类ID：{}，年份：{}", categoryId, year);
         if (year == null){
             year = LocalDate.now().getYear();
         }
@@ -53,22 +53,15 @@ public class PlayerServiceImpl implements PlayerService {
         Long schoolId = user.getSchoolId();
 
         try {
-            // 根据分类代码查询分类ID
-            Category category = categoryMapper.selectOne(
-                    new LambdaQueryWrapper<Category>()
-                            .eq(Category::getCode, categoryCode)
-                            .eq(Category::getStatus, 1)
-            );
-
-            if (category == null) {
-                log.warn("运动分类不存在或已禁用：{}", categoryCode);
+            if (categoryId == null) {
+                log.warn("运动ID不存在或已禁用：{}", categoryId);
                 return new java.util.ArrayList<>();
             }
 
             // 查询该分类在指定年份、指定学校的联赛
             League league = leagueMapper.selectOne(
                     new LambdaQueryWrapper<League>()
-                            .eq(League::getCategoryId, category.getId())
+                            .eq(League::getCategoryId, categoryId)
                             .eq(League::getYear, year)
                             .eq(League::getSchoolId, schoolId)
                             .orderByDesc(League::getCreatedAt)
@@ -76,7 +69,7 @@ public class PlayerServiceImpl implements PlayerService {
             );
 
             if (league == null) {
-                log.warn("未找到对应的联赛，分类：{}，年份：{}", categoryCode, year);
+                log.warn("未找到对应的联赛，分类ID：{}，年份：{}", categoryId, year);
                 return new java.util.ArrayList<>();
             }
 
@@ -107,7 +100,7 @@ public class PlayerServiceImpl implements PlayerService {
             log.info("查询到 {} 条球员榜记录", voList.size());
             return voList;
         }catch (Exception e){
-            log.error("查询球员榜失败，分类：{}，年份：{}", categoryCode, year, e);
+            log.error("查询球员榜失败，分类ID：{}，年份：{}", categoryId, year, e);
             throw new RuntimeException("查询球员榜失败", e);
         }
     }

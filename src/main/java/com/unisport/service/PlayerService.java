@@ -13,5 +13,5 @@ import java.util.List;
  * @since 2025/12/8$
  */
 public interface PlayerService {
-    List<PlayerStatsVO> getStats(String categoryCode, Integer year);
+    List<PlayerStatsVO> getStats(Integer categoryId, Integer year);
 }

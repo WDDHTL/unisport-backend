@@ -35,14 +35,14 @@ public class PlayerController {
     @GetMapping
     @Operation(summary = "获取球员榜", description = "查看球员排名")
     public Result<List<PlayerStatsVO>> getPlayerStats(
-            @Parameter(description = "运动分类代码", example = "football", required = true)
-            @RequestParam String categoryCode,
+            @Parameter(description = "运动分类id", example = "1", required = true)
+            @RequestParam Integer categoryId,
 
             @Parameter(description = "年份，默认当前年份", example = "2025")
             @RequestParam(required = false) Integer year
     ) {
-        log.info("请求查询球员榜，分类：{}，年份：{}", categoryCode, year);
-        List<PlayerStatsVO> stats = playerService.getStats(categoryCode, year);
+        log.info("请求查询球员榜，分类ID：{}，年份：{}", categoryId, year);
+        List<PlayerStatsVO> stats = playerService.getStats(categoryId, year);
         return Result.success(stats);
     }
 }
