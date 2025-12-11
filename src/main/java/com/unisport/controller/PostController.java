@@ -48,7 +48,7 @@ public class PostController {
     @PostMapping
     @Operation(summary = "发布帖子", description = "用户发布新帖子")
     public Result<Post> createPost(@Valid @RequestBody CreatePostDTO createPostDTO) {
-        log.info("接收发布帖子请求，分类：{}", createPostDTO.getCategoryCode());
+        log.info("接收发布帖子请求，分类ID：{}", createPostDTO.getCategoryId());
         
         Post post = postService.createPost(createPostDTO);
         

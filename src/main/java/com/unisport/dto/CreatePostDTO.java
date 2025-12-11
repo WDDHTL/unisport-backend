@@ -24,9 +24,9 @@ public class CreatePostDTO implements Serializable {
     /**
      * 运动分类代码（football/basketball等）
      */
-    @Schema(description = "运动分类代码", example = "football")
-    @NotBlank(message = "运动分类不能为空")
-    private String categoryCode;
+    @Schema(description = "运动分类ID", example = "1")
+    @NotNull(message = "运动分类ID不能为空")
+    private Integer categoryId;
 
     /**
      * 帖子内容

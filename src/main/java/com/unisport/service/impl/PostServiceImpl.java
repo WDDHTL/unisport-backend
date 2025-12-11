@@ -60,14 +60,11 @@ public class PostServiceImpl implements PostService {
         // 获取当前用户的学校id
         Long schoolId = userMapper.selectById(userId).getSchoolId();
 
-        // 2. 验证运动分类是否存在
-        Integer categoryId = validateAndGetCategoryId(createPostDTO.getCategoryCode());
-
         // 3. 检查发帖频率限制（1分钟内最多3条）
         validatePostFrequency(userId);
 
         // 4. 构建帖子实体
-        Post post = buildPost(userId, categoryId, createPostDTO);
+        Post post = buildPost(userId, createPostDTO.getCategoryId(), createPostDTO);
         post.setSchoolId(schoolId);
 
         // 5. 保存帖子到数据库
