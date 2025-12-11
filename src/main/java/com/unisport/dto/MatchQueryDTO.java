@@ -17,7 +17,7 @@ public class MatchQueryDTO implements Serializable {
     /**
      * 运动分类代码（all表示全部）
      */
-    private String categoryCode = "all";
+    private Integer categoryId;
 
     /**
      * 比赛状态：upcoming/live/finished/all

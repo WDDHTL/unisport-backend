@@ -51,20 +51,13 @@ public class MatchServiceImpl implements MatchService {
         LambdaQueryWrapper<Match> queryWrapper = new LambdaQueryWrapper<>();
 
         // 按分类筛选
-        if (!"all".equals(queryDTO.getCategoryCode())) {
-            Category category = categoryMapper.selectOne(
-                new LambdaQueryWrapper<Category>().eq(Category::getCode, queryDTO.getCategoryCode())
+        if (queryDTO.getCategoryId() != null) {
+            League league = leagueMapper.selectOne(
+                    new LambdaQueryWrapper<League>().eq(League::getSchoolId, schoolId)
+                            .eq(League::getCategoryId, queryDTO.getCategoryId())
             );
-            if (category != null) {
-//                queryWrapper.eq(Match::getCategoryId, category.getId());
-                // 查看用户该校的联赛
-                League league = leagueMapper.selectOne(
-                        new LambdaQueryWrapper<League>().eq(League::getSchoolId, schoolId)
-                                .eq(League::getCategoryId, category.getId())
-                );
-                if (league != null) {
-                    queryWrapper.eq(Match::getLeagueId, league.getId());
-                }
+            if (league != null) {
+                queryWrapper.eq(Match::getLeagueId, league.getId());
             }
         }
 
@@ -104,6 +97,7 @@ public class MatchServiceImpl implements MatchService {
         }).collect(Collectors.toList());
 
         voPage.setRecords(voList);
+        log.info("查询到 {} ", voPage.getRecords());
 
         log.info("查询到 {} 条比赛记录", voPage.getTotal());
         return voPage;

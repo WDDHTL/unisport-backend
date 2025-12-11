@@ -178,24 +178,27 @@
 > 👤 **用户身份核心** - 所有用户相关功能的基础数据表
 > 
 > **应用场景：**
-> 1. **用户注册**：新用户通过学号或手机号注册，创建账号并设置个人信息
+> 1. **用户注册**：新用户通过学号或手机号注册，创建账号并设置个人信息，必须选择学校（绑定school_id）
 > 2. **用户登录**：验证 account 和 password，生成登录凭证（JWT Token）
 > 3. **个人主页**：展示用户的昵称、头像、学校、院系、个人简介等信息
 > 4. **编辑资料**：用户在"编辑个人资料"页面修改昵称、头像、简介等
 > 5. **用户列表**：管理端查看所有用户，按学校、院系筛选
 > 6. **账号管理**：管理员可以禁用/启用用户账号（status 字段）
-> 7. **逻辑删除**：用户注销账号时设置 deleted = 1，实现软删除（MyBatis Plus）
-> 8. **社交功能基础**：发帖、评论、点赞等所有操作都需要关联 user_id
+> 7. **社交功能基础**：发帖、评论、点赞等所有操作都需要关联 user_id
+> 8. **学校关联**：school_id标识用户当前就读学校，用于首页、比赛、帖子等功能获取学校信息
+> 9. **教育经历联动**：添加新教育经历成功后自动更新school_id为新学校
+> 10. **数据权限控制**：发帖时自动从school_id获取学校信息，用户只能访问当前就读学校的数据
 > 
 > **典型操作：**
-> - 注册：INSERT 新用户记录，密码使用 bcrypt 加密，包含学号信息
-> - 登录：SELECT WHERE account = ? AND deleted = 0 验证密码
-> - 查询用户：SELECT WHERE id = ? AND deleted = 0 获取用户详情
-> - 更新资料：UPDATE 昵称、头像、bio、学号等字段
-> - 按院系统计：GROUP BY school, department WHERE deleted = 0
-> - 学号查询：SELECT WHERE student_id = ? AND deleted = 0 用于验证学号唯一性
-> - 逻辑删除：UPDATE deleted = 1 WHERE id = ?（注销账号）
-> - 查询活跃用户：SELECT WHERE deleted = 0（排除已删除用户）
+> - 注册：INSERT 新用户记录，密码使用 bcrypt 加密，包含学号和school_id信息
+> - 登录：SELECT WHERE account = ? 验证密码
+> - 查询用户：SELECT WHERE id = ? 获取用户详情
+> - 更新资料：UPDATE 昵称、头像、bio等字段（school_id仅通过教育经历更新）
+> - 按学校查询：SELECT WHERE school_id = ?
+> - 按院系统计：GROUP BY school, department
+> - 学号查询：SELECT WHERE student_id = ? 用于验证学号唯一性
+> - 更新当前学校：UPDATE school_id = ? WHERE id = ?（添加教育经历时自动执行）
+> - 获取当前学校用于发帖：SELECT school_id WHERE id = ?
 
 | 字段名 | 数据类型 | 约束 | 说明 |
 |--------|---------|------|------|
@@ -205,12 +208,12 @@
 | nickname | VARCHAR(50) | NOT NULL | 昵称 |
 | avatar | VARCHAR(500) | NULL | 头像URL |
 | school | VARCHAR(100) | NOT NULL | 学校名称 |
+| school_id | BIGINT | NOT NULL, DEFAULT 1 | 学校ID（当前就读学校） |
 | department | VARCHAR(100) | NOT NULL | 院系 |
 | student_id | VARCHAR(30) | NULL | 学号 |
 | bio | VARCHAR(500) | NULL | 个人简介 |
 | gender | ENUM('male','female','other') | NULL | 性别 |
 | status | TINYINT | DEFAULT 1 | 账号状态（1:正常 0:禁用） |
-| deleted | TINYINT | DEFAULT 0 | 逻辑删除（0:未删除 1:已删除，MyBatis Plus） |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
 
@@ -218,8 +221,8 @@
 - PRIMARY KEY (id)
 - UNIQUE KEY (account)
 - INDEX idx_school_dept (school, department)
+- INDEX idx_school_id (school_id)
 - INDEX idx_student_id (student_id)
-- INDEX idx_deleted (deleted)
 
 ---
 
@@ -402,16 +405,19 @@
 > 
 > **应用场景：**
 > 1. **联赛列表**：展示当前进行中的各类联赛（新生杯、院系联赛等）
-> 2. **赛事筛选**：按运动分类、赛季年份筛选联赛
+> 2. **赛事筛选**：按运动分类、赛季年份、学校筛选联赛
 > 3. **联赛详情**：查看联赛的名称、描述、起止日期等信息
 > 4. **比赛关联**：所有比赛都必须关联到某个联赛
 > 5. **积分榜组织**：每个联赛都有对应的积分榜和球员统计
 > 6. **历史赛事**：查询往年的联赛信息和成绩
 > 7. **赛事状态**：区分进行中和已结束的联赛
+> 8. **学校联赛**：每个联赛归属于一个学校，不支持跨校联赛
+> 9. **年度区分**：同一学校每年举办的联赛（如2024新生杯、2025新生杯）视为不同联赛实体
 > 
 > **典型操作：**
-> - 创建联赛：INSERT 新联赛记录
+> - 创建联赛：INSERT 新联赛记录（必须指定学校）
 > - 当前赛季：SELECT WHERE category_id = ? AND year = 2025 AND status = 1
+> - 学校联赛：SELECT WHERE school_id = ? AND year = 2025
 > - 历史赛事：SELECT WHERE category_id = ? ORDER BY year DESC
 > - 更新状态：UPDATE status = 0 当赛事结束
 
@@ -419,6 +425,7 @@
 |--------|---------|------|------|
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 联赛ID |
 | category_id | INT | NOT NULL | 运动分类ID |
+| school_id | BIGINT | NOT NULL | 学校ID（联赛所属学校，软关联） |
 | name | VARCHAR(100) | NOT NULL | 联赛名称（如"新生杯"） |
 | year | INT | NOT NULL | 赛季年份 |
 | description | TEXT | NULL | 联赛描述 |
@@ -430,9 +437,18 @@
 **索引：**
 - PRIMARY KEY (id)
 - INDEX idx_category_year (category_id, year)
+- INDEX idx_school_year (school_id, year)
 
 **外键：**
 - FOREIGN KEY (category_id) REFERENCES categories(id)
+
+**设计说明：**
+> ⚠️ **软连接设计**：school_id 字段不设置外键约束，仅通过业务逻辑保证数据一致性。
+> 
+> **原因：**
+> - 避免因物理外键导致的数据插入失败
+> - 提高数据操作的灵活性
+> - 业务层负责维护 school_id 的有效性
 
 ---
 
@@ -450,24 +466,30 @@
 > 4. **队伍成员**：通过 team_members 表查看队伍的球员名单
 > 5. **院系代表队**：按 department 字段组织院系之间的比赛
 > 6. **队长信息**：关联 captain_id 展示队长信息（可选）
+> 7. **联赛队伍**：每个队伍只能参加一个联赛，通过 league_id 关联
+> 8. **年度区分**：每年的队伍需要重新创建（即使名称相同），如2024计算机队、2025计算机队是两个不同队伍
 > 
 > **设计特点：**
 > - **适用范围**：仅用于团队项目（足球、篮球），个人项目不使用
-> - **队长可选**：captain_id 为 NULL，不强制关联用户
+> - **队长可选**：captain_id 为 NULL，不强制关联用户（软连接设计）
+> - **联赛绑定**：每个队伍必须关联到一个联赛，不同年份的联赛创建不同队伍
+> - **数据冗余**：保留 category_id 字段，避免多表关联，提高查询性能
 > 
 > **典型操作：**
-> - 创建队伍：INSERT 新队伍记录
+> - 创建队伍：INSERT 新队伍记录（必须指定联赛）
 > - 按分类查询：SELECT WHERE category_id = ?
+> - 按联赛查询：SELECT WHERE league_id = ?
 > - 按院系查询：SELECT WHERE department = '计算机系'
 > - 更新队伍信息：UPDATE 队名、队徽、介绍等
 
 | 字段名 | 数据类型 | 约束 | 说明 |
 |--------|---------|------|------|
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 队伍ID |
-| category_id | INT | NOT NULL | 运动分类ID |
+| category_id | INT | NOT NULL | 运动分类ID（冗余字段，便于查询） |
+| league_id | BIGINT | NOT NULL | 联赛ID（队伍参加的联赛，软关联） |
 | name | VARCHAR(100) | NOT NULL | 队伍名称 |
 | logo | VARCHAR(500) | NULL | 队徽URL |
-| captain_id | BIGINT | NULL | 队长用户ID |
+| captain_id | BIGINT | NULL | 队长用户ID（软关联） |
 | department | VARCHAR(100) | NULL | 所属院系 |
 | description | TEXT | NULL | 队伍介绍 |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
@@ -475,11 +497,23 @@
 **索引：**
 - PRIMARY KEY (id)
 - INDEX idx_category (category_id)
+- INDEX idx_league (league_id)
 - INDEX idx_captain (captain_id)
 
 **外键：**
 - FOREIGN KEY (category_id) REFERENCES categories(id)
-- FOREIGN KEY (captain_id) REFERENCES users(id) ON DELETE SET NULL
+
+**设计说明：**
+> ⚠️ **软连接设计**：league_id 和 captain_id 字段不设置外键约束，仅通过业务逻辑保证数据一致性。
+> 
+> **原因：**
+> - 避免因物理外键导致的数据插入失败
+> - 提高数据操作的灵活性
+> - 业务层负责维护 league_id 和 captain_id 的有效性
+> 
+> **业务规则：**
+> - category_id 必须与 league_id 关联的联赛的 category_id 保持一致（业务层校验）
+> - 每年创建新联赛时，需为该联赛创建新的队伍记录（即使队伍名称相同）
 
 ---
 
@@ -690,9 +724,9 @@
 > - 负场：0分
 > 
 > **典型操作：**
-> - 查询榜单：SELECT WHERE league_id = ? ORDER BY rank
+> - 查询榜单：SELECT WHERE league_id = ? ORDER BY team_rank
 > - 更新成绩：UPDATE played += 1, won += 1, points += 3
-> - 重算排名：UPDATE rank 根据 points 重新排序
+> - 重算排名：UPDATE team_rank 根据 points 重新排序
 > - 团队排名：SELECT WHERE league_id = ? AND team_id IS NOT NULL
 > - 个人排名：SELECT WHERE league_id = ? AND user_id IS NOT NULL
 
@@ -702,7 +736,7 @@
 | league_id | BIGINT | NOT NULL | 联赛ID |
 | team_id | BIGINT | NULL | 队伍ID（团队项目） |
 | user_id | BIGINT | NULL | 用户ID（个人项目） |
-| rank | INT | NOT NULL | 排名 |
+| team_rank | INT | NOT NULL | 排名 |
 | played | INT | DEFAULT 0 | 已赛场次 |
 | won | INT | DEFAULT 0 | 胜场 |
 | drawn | INT | DEFAULT 0 | 平局 |
@@ -714,7 +748,7 @@
 - PRIMARY KEY (id)
 - UNIQUE KEY uk_league_team (league_id, team_id)
 - UNIQUE KEY uk_league_user (league_id, user_id)
-- INDEX idx_rank (league_id, rank)
+- INDEX idx_rank (league_id, team_rank)
 
 **外键：**
 - FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
@@ -741,16 +775,16 @@
 > 
 > **统计数据：**
 > - **played**：出场次数
-> - **value**：主要统计值（足球进球/篮球得分）
+> - **stat_value**：主要统计值（足球进球/篮球得分）
 > - **assists**：助攻数
-> - **rank**：在联赛中的排名
+> - **player_rank**：在联赛中的排名
 > 
 > **典型操作：**
-> - 射手榜：SELECT WHERE league_id = ? ORDER BY value DESC LIMIT 10
-> - 更新数据：UPDATE played += 1, value += 1 比赛后自动更新
+> - 射手榜：SELECT WHERE league_id = ? ORDER BY stat_value DESC LIMIT 10
+> - 更新数据：UPDATE played += 1, stat_value += 1 比赛后自动更新
 > - 球员详情：SELECT WHERE team_member_id = ? AND league_id = ?
 > - 队伍统计：SELECT WHERE team_id = ? AND league_id = ?
-> - 重算排名：UPDATE rank 根据 value 重新排序
+> - 重算排名：UPDATE player_rank 根据 stat_value 重新排序
 
 **设计说明：**
 > 统计数据基于 `team_members` 表中的球员，而非应用用户。`team_member_id` 关联到实际参赛球员。
@@ -762,16 +796,16 @@
 | team_member_id | BIGINT | NOT NULL | 队伍成员ID（关联team_members表） |
 | team_id | BIGINT | NULL | 所属队伍ID |
 | played | INT | DEFAULT 0 | 出场次数 |
-| value | INT | DEFAULT 0 | 统计值（进球/得分等） |
+| stat_value | INT | DEFAULT 0 | 统计值（进球/得分等） |
 | assists | INT | DEFAULT 0 | 助攻数 |
-| rank | INT | NULL | 排名 |
+| player_rank | INT | NULL | 排名 |
 | updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
 
 **索引：**
 - PRIMARY KEY (id)
 - UNIQUE KEY uk_league_member (league_id, team_member_id)
-- INDEX idx_rank (league_id, rank)
-- INDEX idx_value (league_id, value DESC)
+- INDEX idx_rank (league_id, player_rank)
+- INDEX idx_value (league_id, stat_value DESC)
 
 **外键：**
 - FOREIGN KEY (league_id) REFERENCES leagues(id) ON DELETE CASCADE
@@ -790,29 +824,32 @@
 > 📱 **核心社交功能** - 用户分享运动动态的主要载体
 > 
 > **应用场景：**
-> 1. **发布动态**：用户在首页点击"发帖"按钮，分享运动心得、比赛感想、训练打卡等内容
-> 2. **动态流展示**：首页按运动分类（足球/篮球/羽毛球等）展示相关帖子列表
+> 1. **发布动态**：用户在首页点击"发帖"按钮，分享运动心得、比赛感想、训练打卡等内容，发帖时自动绑定用户当前就读学校
+> 2. **动态流展示**：首页按运动分类（足球/篮球/羽毛球等）展示相关帖子列表，仅显示当前用户所在学校的帖子
 > 3. **个人主页**：在"我的发帖"页面查看自己发布的所有动态
 > 4. **内容分类**：根据 category_id 筛选特定运动类型的帖子
 > 5. **热门内容**：根据 likes_count 和 comments_count 推荐热门动态
 > 6. **时间排序**：按 created_at 倒序显示最新动态
+> 7. **学校隔离**：用户只能查看当前就读学校（users.school_id）的帖子，切换学校后无法看到旧学校的帖子
 > 
 > **典型操作：**
-> - 创建帖子：INSERT 新记录，支持文字 + 多图
-> - 查询动态流：SELECT WHERE category_id = ? ORDER BY created_at DESC
+> - 创建帖子：INSERT 新记录，支持文字 + 多图，school_id从users.school_id自动获取
+> - 查询动态流：SELECT WHERE category_id = ? AND school_id = ? AND deleted = 0 ORDER BY created_at DESC
+> - 按学校查询：SELECT WHERE school_id = ? AND deleted = 0 ORDER BY created_at DESC
 > - 更新互动数：UPDATE likes_count/comments_count（触发器自动更新）
-> - 删除帖子：UPDATE status = 0（逻辑删除，保留数据）
+> - 删除帖子：UPDATE deleted = 1（逻辑删除，MyBatis Plus自动过滤）
 
 | 字段名 | 数据类型 | 约束 | 说明 |
 |--------|---------|------|------|
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 帖子ID |
 | user_id | BIGINT | NOT NULL | 发布用户ID |
 | category_id | INT | NOT NULL | 运动分类ID |
+| school_id | BIGINT | NOT NULL | 学校ID（发帖时从users.school_id获取，软关联） |
 | content | TEXT | NOT NULL | 帖子内容 |
 | images | JSON | NULL | 图片URL数组（支持多图） |
 | likes_count | INT | DEFAULT 0 | 点赞数 |
 | comments_count | INT | DEFAULT 0 | 评论数 |
-| status | TINYINT | DEFAULT 1 | 状态（1:正常 0:删除） |
+| deleted | TINYINT | DEFAULT 0 | 逻辑删除（0:未删除 1:已删除，MyBatis Plus） |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
 
@@ -820,11 +857,24 @@
 - PRIMARY KEY (id)
 - INDEX idx_user (user_id)
 - INDEX idx_category_time (category_id, created_at DESC)
+- INDEX idx_school_time (school_id, created_at DESC)
 - INDEX idx_created (created_at DESC)
+- INDEX idx_deleted (deleted)
 
 **外键：**
 - FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 - FOREIGN KEY (category_id) REFERENCES categories(id)
+
+**设计说明：**
+> ⚠️ **软连接设计**：school_id 字段不设置外键约束，仅通过业务逻辑保证数据一致性。
+> 
+> **业务规则：**
+> 1. 发帖时，school_id 自动从当前用户的 users.school_id 获取，用户不可见也不可修改
+> 2. 用户切换学校后（添加新教育经历），旧帖子的 school_id 保持不变
+> 3. 用户只能查看当前 users.school_id 匹配的帖子，切换学校后无法看到旧学校的帖子（包括自己的）
+> 4. 如果用户已毕业（users.school_id 为 NULL），禁止发帖
+> 5. 已毕业用户的帖子不删除，同校在读学生仍可查看
+> 6. 应用层在发帖时强制验证 users.school_id 非空且在 schools 表中存在
 
 ---
 
@@ -1035,12 +1085,14 @@
 4. **学生 ↔ 用户**：软绑定关系（通过 student_id 字段关联，非外键约束）
 5. **用户 ↔ 教育经历**：一对多关系（一个用户可以有多条教育经历）
 6. **教育经历 ↔ 学校/学院**：多对一关系（通过外键关联）
-7. **用户 ↔ 帖子**：一对多关系（一个用户可以发布多个帖子）
-8. **帖子 ↔ 评论**：一对多关系（一个帖子可以有多条评论）
-9. **球员 ↔ 队伍**：多对多关系（通过 team_members 关联表，一个球员可以加入多个队伍，一个队伍有多个球员）
-10. **比赛 ↔ 队伍**：多对一关系（一场比赛有两个队伍）
-11. **比赛 ↔ 事件**：一对多关系（一场比赛有多个事件）
-12. **用户 ↔ 用户（关注）**：多对多自关联（通过 user_follows）
+7. **学校 ↔ 联赛**：一对多关系（一个学校有多个联赛，软关联）
+8. **联赛 ↔ 队伍**：一对多关系（一个联赛有多个队伍，软关联）
+9. **用户 ↔ 帖子**：一对多关系（一个用户可以发布多个帖子）
+10. **帖子 ↔ 评论**：一对多关系（一个帖子可以有多条评论）
+11. **球员 ↔ 队伍**：多对多关系（通过 team_members 关联表，一个球员可以加入多个队伍，一个队伍有多个球员）
+12. **比赛 ↔ 队伍**：多对一关系（一场比赛有两个队伍）
+13. **比赛 ↔ 事件**：一对多关系（一场比赛有多个事件）
+14. **用户 ↔ 用户（关注）**：多对多自关联（通过 user_follows）
 
 ---
 

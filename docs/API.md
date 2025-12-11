@@ -122,7 +122,7 @@ Authorization: Bearer <JWT Token>
 | account | String | 是 | 账号（手机号/学号） |
 | password | String | 是 | 密码（6-20位） |
 | school | String | 是 | 学校名称 |
-| schoolId | Long | 是 | 学校ID |
+| schoolId | Long | 是 | 学校ID（注册时绑定，标识用户当前就读学校） |
 | department | String | 是 | 学院名称 |
 | departmentId | Long | 是 | 学院ID |
 | studentId | String | 是 | 学号（用于身份验证） |
@@ -138,6 +138,7 @@ Authorization: Bearer <JWT Token>
     "account": "2024001",
     "nickname": "2024001",
     "school": "清华大学",
+    "schoolId": 1,
     "department": "计算机系",
     "studentId": "2024001001",
     "createdAt": "2025-12-01T10:00:00"
@@ -176,6 +177,7 @@ Authorization: Bearer <JWT Token>
 3. 💾 **创建用户**：
    - 密码使用 BCrypt 加密存储
    - users.student_id 字段记录学号（与 students.student_id 软关联）
+   - users.school_id 字段记录当前就读学校ID
    - 默认昵称为账号，用户可后续修改
 
 **注意事项**:
@@ -183,8 +185,9 @@ Authorization: Bearer <JWT Token>
 2. ⚠️ 账号唯一性校验
 3. ⚠️ 学号必须在 students 表中存在且学校/学院信息匹配
 4. ⚠️ 学生状态必须为在校（status=1）
-5. 💡 前端提供学校学院下拉选择（调用 GET /api/schools 和 GET /api/departments）
-6. 💡 学号输入框实时验证格式
+5. ⚠️ schoolId 为必填字段，注册时即绑定用户当前就读学校
+6. 💡 前端提供学校学院下拉选择（调用 GET /api/schools 和 GET /api/departments）
+7. 💡 学号输入框实时验证格式
 
 ---
 
@@ -252,6 +255,7 @@ Authorization: Bearer <JWT Token>
     "nickname": "李四",
     "avatar": "https://example.com/avatar.jpg",
     "school": "清华大学",
+    "schoolId": 1,
     "department": "经管学院",
     "bio": "篮球爱好者",
     "followersCount": 120,
@@ -287,8 +291,9 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 只能修改自己的信息
 2. ⚠️ 部分更新，未提交字段保持不变
-3. ⚠️ account、school、department、student_id 不可修改
+3. ⚠️ account、school、department、student_id、school_id 不可修改
 4. 💡 学校和院系信息通过教育经历表管理
+5. 💡 school_id 只能通过添加教育经历更新，不允许用户随意修改
 
 ---
 
@@ -497,12 +502,17 @@ Authorization: Bearer <JWT Token>
    - 如果 isPrimary=true，将其他教育经历的 isPrimary 设为 false
    - 确保每个用户只有一个主要教育经历
 
+4. ✅ **更新users表school_id**：
+   - 添加成功后，自动更新users.school_id为新教育经历的school_id
+   - 确保用户当前学校信息是最新的
+
 **注意事项**:
 1. ⚠️ 学号必须在 students 表中存在且学校/学院信息匹配
 2. ⚠️ 同一用户不能添加重复的学校+学号组合
 3. ⚠️ 只能添加自己的教育经历
-4. 💡 添加成功后返回完整的教育经历信息（包括学校和院系名称）
-5. 💡 前端需调用 GET /api/schools 和 GET /api/departments 接口获取下拉选项
+4. ⚠️ 添加成功后会自动更新users.school_id为新学校ID
+5. 💡 添加成功后返回完整的教育经历信息（包括学校和院系名称）
+6. 💡 前端需调用 GET /api/schools 和 GET /api/departments 接口获取下拉选项
 
 ---
 
@@ -588,6 +598,8 @@ Authorization: Bearer <JWT Token>
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|-------|------|
 | categoryCode | String | all | 运动分类 |
+| schoolId | Long | null | 学校ID（可选，筛选某学校的比赛） |
+| leagueId | Long | null | 联赛ID（可选，筛选某联赛的比赛） |
 | status | String | all | 比赛状态：upcoming/live/finished/all |
 | current | Integer | 1 | 页码 |
 | size | Integer | 10 | 每页大小 |
@@ -601,6 +613,10 @@ Authorization: Bearer <JWT Token>
     "records": [
       {
         "id": 1,
+        "leagueId": 1,
+        "leagueName": "2025新生杯",
+        "schoolId": 1,
+        "schoolName": "清华大学",
         "categoryCode": "football",
         "categoryName": "足球",
         "teamAName": "计算机系",
@@ -621,6 +637,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 按比赛时间倒序
 2. ⚠️ 实时比赛每30秒轮询
+3. 💡 schoolId 和 leagueId 可用于筛选特定学校或联赛的比赛
 
 ---
 
@@ -680,8 +697,9 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| categoryCode | String | 是 | 运动分类 |
-| year | Integer | 否 | 年份，默认当前年份 |
+| leagueId | Long | 是 | 联赛ID（必须指定联赛） |
+| categoryCode | String | 否 | 运动分类（兼容旧版本） |
+| year | Integer | 否 | 年份，默认当前年份（兼容旧版本） |
 
 **成功响应**:
 
@@ -691,7 +709,10 @@ Authorization: Bearer <JWT Token>
   "data": [
     {
       "rank": 1,
+      "teamId": 5,
       "teamName": "计算机系",
+      "leagueId": 1,
+      "leagueName": "2025新生杯",
       "played": 5,
       "won": 4,
       "drawn": 1,
@@ -705,6 +726,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 计分规则：胜3分、平1分、负0分
 2. 💡 缓存积分榜数据
+3. 💡 新版本优先使用 leagueId 查询，categoryCode+year 仅作为兼容
 
 ---
 
@@ -721,8 +743,9 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| categoryCode | String | 是 | 运动分类 |
-| year | Integer | 否 | 年份 |
+| leagueId | Long | 是 | 联赛ID（必须指定联赛） |
+| categoryCode | String | 否 | 运动分类（兼容旧版本） |
+| year | Integer | 否 | 年份（兼容旧版本） |
 
 **成功响应**:
 
@@ -734,12 +757,18 @@ Authorization: Bearer <JWT Token>
       "rank": 1,
       "playerName": "张三",
       "teamName": "计算机系",
+      "leagueId": 1,
+      "leagueName": "2025新生杯",
       "played": 5,
       "goals": 8
     }
   ]
 }
 ```
+
+**注意事项**:
+1. 💡 新版本优先使用 leagueId 查询，categoryCode+year 仅作为兼容
+2. 💡 每年的球员统计按联赛区分
 
 ---
 
@@ -752,6 +781,7 @@ Authorization: Bearer <JWT Token>
 **使用场景**:
 - 首页动态流
 - 按分类筛选帖子
+- 仅显示当前用户所在学校的帖子
 
 **前端页面**: `PostFeed.tsx`, `MyPosts.tsx`
 
@@ -775,6 +805,8 @@ Authorization: Bearer <JWT Token>
         "userId": 2,
         "userName": "李四",
         "userAvatar": "https://example.com/avatar.jpg",
+        "schoolId": 1,
+        "schoolName": "清华大学",
         "categoryCode": "football",
         "content": "今天的比赛太精彩了！",
         "images": ["https://example.com/post1.jpg"],
@@ -787,6 +819,15 @@ Authorization: Bearer <JWT Token>
   }
 }
 ```
+
+**业务逻辑**:
+1. 后端自动从当前登录用户的 `users.school_id` 获取学校ID
+2. 查询条件强制添加 `WHERE posts.school_id = 当前用户的school_id`
+3. 用户只能看到当前就读学校的帖子，切换学校后无法看到旧学校的帖子
+
+**注意事项**:
+1. ⚠️ 如果用户已毕业（users.school_id 为 NULL），返回空列表
+2. 💡 前端无需传递 schoolId 参数，后端自动过滤
 
 ---
 
@@ -828,6 +869,7 @@ Authorization: Bearer <JWT Token>
 
 **使用场景**:
 - 发布新帖子
+- 发帖时自动绑定用户当前就读学校
 
 **前端页面**: `CreatePost.tsx`
 
@@ -841,10 +883,35 @@ Authorization: Bearer <JWT Token>
 }
 ```
 
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "发布成功",
+  "data": {
+    "id": 1,
+    "userId": 2,
+    "schoolId": 1,
+    "categoryCode": "football",
+    "content": "今天的比赛太精彩了！",
+    "images": ["https://example.com/upload/123.jpg"],
+    "createdAt": "2025-12-09T11:00:00"
+  }
+}
+```
+
+**业务逻辑**:
+1. 后端从当前登录用户的 `users.school_id` 自动获取学校ID
+2. 创建帖子时，`posts.school_id` 字段自动设置为用户的当前学校ID
+3. 用户无需（也无法）传递 schoolId 参数
+
 **注意事项**:
 1. ⚠️ 内容长度1-5000字符
 2. ⚠️ 最多9张图片
 3. ⚠️ 1分钟内最多发布3条
+4. ⚠️ 如果用户已毕业（users.school_id 为 NULL），返回错误码 40007，提示"毕业用户暂不支持发帖"
+5. 💡 school_id 字段对前端透明，由后端自动处理
 
 ---
 
@@ -891,7 +958,7 @@ Authorization: Bearer <JWT Token>
 
 **注意事项**:
 1. ⚠️ 只能删除自己的帖子
-2. ⚠️ 逻辑删除（deleted=1）
+2. ⚠️ 逻辑删除（deleted=1，MyBatis Plus自动过滤）
 
 ---
 
@@ -1114,18 +1181,23 @@ Authorization: Bearer <JWT Token>
 
 ### 7.5 文件上传
 
-**接口**: `POST /api/upload`
+**接口**: `POST /api/common/upload`
 
 **使用场景**:
 - 上传头像、帖子图片
 
 **请求类型**: `multipart/form-data`
 
+**请求头**:
+```
+Authorization: Bearer <JWT Token>
+Content-Type: multipart/form-data
+```
+
 **请求参数**:
 
 ```
-file: [二进制文件]
-type: avatar / post
+file: [二进制文件]（必填，仅支持图片）
 ```
 
 **成功响应**:
@@ -1133,16 +1205,16 @@ type: avatar / post
 ```json
 {
   "code": 200,
-  "data": {
-    "url": "https://cdn.example.com/uploads/abc123.jpg"
-  }
+  "message": "上传成功",
+  "data": "https://cdn.example.com/upload/abc123.jpg",
+  "timestamp": 1701234567890
 }
 ```
 
 **注意事项**:
-1. ⚠️ 头像限制2MB，帖子图片5MB
-2. ⚠️ 仅支持 jpg、png、gif
-3. 💡 前端压缩后上传
+1. ⚠️ 需登录，前端会自动携带 Authorization 头
+2. ⚠️ 仅支持 JPG/JPEG、PNG、GIF，单个文件最大 5MB
+3. 💡 前端已内置格式/大小校验，上传失败会提示重新选择
 
 ---
 
@@ -1183,6 +1255,7 @@ type: avatar / post
 | 40004 | 参数验证失败 | 检查请求参数 |
 | 40005 | 学号验证失败 | 该学号不存在或学校/学院信息不匹配 |
 | 40006 | 教育经历已存在 | 同一学校+学号的教育经历已添加 |
+| 40007 | 毕业用户禁止发帖 | 毕业用户（school_id为NULL）暂不支持发帖 |
 | 40101 | Token无效或过期 | 重新登录 |
 | 40301 | 无权限操作 | 检查操作权限 |
 | 40401 | 资源不存在 | 检查资源ID |
@@ -1231,7 +1304,7 @@ type: avatar / post
 | 页面 | 接口 | 说明 |
 |------|------|------|
 | CreatePost.tsx | POST /api/posts | 发布帖子 |
-| CreatePost.tsx | POST /api/upload | 上传图片 |
+| CreatePost.tsx | POST /api/common/upload | 上传图片 |
 | PostDetail.tsx | GET /api/posts/{id} | 获取帖子详情 |
 | PostDetail.tsx | POST /api/posts/{id}/like | 点赞帖子 |
 | PostDetail.tsx | POST /api/posts/{id}/comments | 评论帖子 |
@@ -1246,7 +1319,7 @@ type: avatar / post
 | EditProfile.tsx | PUT /api/users/{id} | 更新用户信息 |
 | EditProfile.tsx | GET /api/users/{id}/educations | 获取教育经历列表 |
 | EditProfile.tsx | DELETE /api/users/educations/{id} | 删除教育经历 |
-| EditProfile.tsx | POST /api/upload | 上传头像 |
+| EditProfile.tsx | POST /api/common/upload | 上传头像 |
 | AddEducation.tsx | GET /api/schools | 获取学校列表 |
 | AddEducation.tsx | GET /api/departments | 获取学院列表 |
 | AddEducation.tsx | POST /api/users/educations | 添加教育经历 |

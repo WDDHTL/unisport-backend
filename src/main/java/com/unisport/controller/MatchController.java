@@ -32,7 +32,7 @@ public class MatchController {
     /**
      * 获取比赛列表
      *
-     * @param categoryCode 运动分类代码（可选，默认all）
+     * @param categoryId 运动分类id
      * @param status 比赛状态（可选，默认all）
      * @param current 页码（可选，默认1）
      * @param size 每页大小（可选，默认10）
@@ -42,7 +42,7 @@ public class MatchController {
     @Operation(summary = "获取比赛列表", description = "支持按分类、状态筛选，分页查询")
     public Result<Page<MatchVO>> getMatchList(
         @Parameter(description = "运动分类代码", example = "football") 
-        @RequestParam(required = false, defaultValue = "all") String categoryCode,
+        @RequestParam(required = true) Integer categoryId,
         
         @Parameter(description = "比赛状态：upcoming/live/finished/all", example = "upcoming") 
         @RequestParam(required = false, defaultValue = "all") String status,
@@ -54,7 +54,7 @@ public class MatchController {
         @RequestParam(required = false, defaultValue = "10") Integer size
     ) {
         MatchQueryDTO queryDTO = new MatchQueryDTO();
-        queryDTO.setCategoryCode(categoryCode);
+        queryDTO.setCategoryId(categoryId);
         queryDTO.setStatus(status);
         queryDTO.setCurrent(current);
         queryDTO.setSize(size);
