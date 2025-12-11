@@ -29,21 +29,21 @@ public class StandingController {
     /**
      * 获取积分榜
      *
-     * @param categoryCode 运动分类代码（必填）
+     * @param categoryId 运动分类代码（必填）
      * @param year 年份（可选，默认当前年份）
      * @return 积分榜列表
      */
     @GetMapping
     @Operation(summary = "获取积分榜", description = "查看联赛积分排名")
     public Result<List<StandingVO>> getStandings(
-        @Parameter(description = "运动分类代码", example = "football", required = true)
-        @RequestParam String categoryCode,
+        @Parameter(description = "运动分类代码", required = true)
+        @RequestParam Integer categoryId,
         
         @Parameter(description = "年份，默认当前年份", example = "2025")
         @RequestParam(required = false) Integer year
     ) {
-        log.info("请求查询积分榜，分类：{}，年份：{}", categoryCode, year);
-        List<StandingVO> standings = standingService.getStandings(categoryCode, year);
+        log.info("请求查询积分榜，分类：{}，年份：{}", categoryId, year);
+        List<StandingVO> standings = standingService.getStandings(categoryId, year);
         return Result.success(standings);
     }
 }

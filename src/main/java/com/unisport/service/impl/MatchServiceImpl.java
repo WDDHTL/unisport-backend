@@ -98,6 +98,7 @@ public class MatchServiceImpl implements MatchService {
 
         voPage.setRecords(voList);
         log.info("查询到 {} ", voPage.getRecords());
+        voPage.setTotal(voList.size());
 
         log.info("查询到 {} 条比赛记录", voPage.getTotal());
         return voPage;
