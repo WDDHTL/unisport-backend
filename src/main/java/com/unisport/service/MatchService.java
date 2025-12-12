@@ -5,6 +5,8 @@ import com.unisport.dto.MatchQueryDTO;
 import com.unisport.vo.MatchDetailVO;
 import com.unisport.vo.MatchVO;
 
+import java.util.List;
+
 /**
  * 比赛服务接口
  *
@@ -18,7 +20,7 @@ public interface MatchService {
      * @param queryDTO 查询参数
      * @return 比赛分页数据
      */
-    Page<MatchVO> getMatchList(MatchQueryDTO queryDTO);
+    List<MatchVO> getMatchList(MatchQueryDTO queryDTO);
 
     /**
      * 获取比赛详情

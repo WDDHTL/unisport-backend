@@ -597,12 +597,10 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|-------|------|
-| categoryCode | String | all | 运动分类 |
+| categoryId | Long | null | 运动分类ID（可选，筛选某运动分类的比赛） |
 | schoolId | Long | null | 学校ID（可选，筛选某学校的比赛） |
 | leagueId | Long | null | 联赛ID（可选，筛选某联赛的比赛） |
 | status | String | all | 比赛状态：upcoming/live/finished/all |
-| current | Integer | 1 | 页码 |
-| size | Integer | 10 | 每页大小 |
 
 **成功响应**:
 
@@ -638,6 +636,7 @@ Authorization: Bearer <JWT Token>
 1. ⚠️ 按比赛时间倒序
 2. ⚠️ 实时比赛每30秒轮询
 3. 💡 schoolId 和 leagueId 可用于筛选特定学校或联赛的比赛
+4. 💡 移动端应用不使用分页，后端返回所有比赛
 
 ---
 
@@ -698,7 +697,7 @@ Authorization: Bearer <JWT Token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | leagueId | Long | 是 | 联赛ID（必须指定联赛） |
-| categoryCode | String | 否 | 运动分类（兼容旧版本） |
+| categoryId | Long | 否 | 运动分类ID（兼容旧版本） |
 | year | Integer | 否 | 年份，默认当前年份（兼容旧版本） |
 
 **成功响应**:
@@ -726,7 +725,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 计分规则：胜3分、平1分、负0分
 2. 💡 缓存积分榜数据
-3. 💡 新版本优先使用 leagueId 查询，categoryCode+year 仅作为兼容
+3. 💡 新版本优先使用 leagueId 查询，categoryId+year 仅作为兼容
 
 ---
 
@@ -744,7 +743,7 @@ Authorization: Bearer <JWT Token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | leagueId | Long | 是 | 联赛ID（必须指定联赛） |
-| categoryCode | String | 否 | 运动分类（兼容旧版本） |
+| categoryId | Long | 否 | 运动分类ID（兼容旧版本） |
 | year | Integer | 否 | 年份（兼容旧版本） |
 
 **成功响应**:
@@ -767,7 +766,7 @@ Authorization: Bearer <JWT Token>
 ```
 
 **注意事项**:
-1. 💡 新版本优先使用 leagueId 查询，categoryCode+year 仅作为兼容
+1. 💡 新版本优先使用 leagueId 查询，categoryId+year 仅作为兼容
 2. 💡 每年的球员统计按联赛区分
 
 ---
@@ -789,9 +788,7 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|-------|------|
-| categoryCode | String | all | 运动分类 |
-| current | Integer | 1 | 页码 |
-| size | Integer | 10 | 每页大小 |
+| categoryId | Long | null | 运动分类ID（可选，筛选某运动分类的帖子） |
 
 **成功响应**:
 
@@ -828,6 +825,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 如果用户已毕业（users.school_id 为 NULL），返回空列表
 2. 💡 前端无需传递 schoolId 参数，后端自动过滤
+3. 💡 移动端应用不使用分页，后端返回所有帖子
 
 ---
 
@@ -877,7 +875,7 @@ Authorization: Bearer <JWT Token>
 
 ```json
 {
-  "categoryCode": "football",
+  "categoryId": 1,
   "content": "今天的比赛太精彩了！",
   "images": ["https://example.com/upload/123.jpg"]
 }
@@ -893,7 +891,7 @@ Authorization: Bearer <JWT Token>
     "id": 1,
     "userId": 2,
     "schoolId": 1,
-    "categoryCode": "football",
+    "categoryId": 1,
     "content": "今天的比赛太精彩了！",
     "images": ["https://example.com/upload/123.jpg"],
     "createdAt": "2025-12-09T11:00:00"
@@ -1218,31 +1216,6 @@ file: [二进制文件]（必填，仅支持图片）
 
 ---
 
-### 7.2 获取学校列表
-
-**接口**: `GET /api/schools`
-
-**使用场景**:
-- 注册时选择学校院系
-
-**前端页面**: `Register.tsx`
-
-**成功响应**:
-
-```json
-{
-  "code": 200,
-  "data": [
-    {
-      "name": "清华大学",
-      "departments": ["计算机系", "经管学院"]
-    }
-  ]
-}
-```
-
----
-
 ## 8. 错误码说明
 
 ### 8.1 业务错误码
@@ -1283,7 +1256,7 @@ file: [二进制文件]（必填，仅支持图片）
 | 页面 | 接口 | 说明 |
 |------|------|------|
 | Navbar.tsx | GET /api/categories | 获取运动分类 |
-| MatchList.tsx | GET /api/matches?size=3 | 获取最近3场比赛 |
+| MatchList.tsx | GET /api/matches | 获取最近比赛 |
 | PostFeed.tsx | GET /api/posts | 获取帖子列表 |
 
 ---

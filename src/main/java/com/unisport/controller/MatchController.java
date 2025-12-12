@@ -34,32 +34,23 @@ public class MatchController {
      *
      * @param categoryId 运动分类id
      * @param status 比赛状态（可选，默认all）
-     * @param current 页码（可选，默认1）
-     * @param size 每页大小（可选，默认10）
      * @return 比赛分页数据
      */
     @GetMapping
     @Operation(summary = "获取比赛列表", description = "支持按分类、状态筛选，分页查询")
-    public Result<Page<MatchVO>> getMatchList(
+    public Result<List<MatchVO>> getMatchList(
         @Parameter(description = "运动分类代码", example = "football") 
         @RequestParam(required = true) Integer categoryId,
         
         @Parameter(description = "比赛状态：upcoming/live/finished/all", example = "upcoming") 
-        @RequestParam(required = false, defaultValue = "all") String status,
-        
-        @Parameter(description = "页码", example = "1") 
-        @RequestParam(required = false, defaultValue = "1") Integer current,
-        
-        @Parameter(description = "每页大小", example = "10") 
-        @RequestParam(required = false, defaultValue = "10") Integer size
+        @RequestParam(required = false, defaultValue = "all") String status
+
     ) {
         MatchQueryDTO queryDTO = new MatchQueryDTO();
         queryDTO.setCategoryId(categoryId);
         queryDTO.setStatus(status);
-        queryDTO.setCurrent(current);
-        queryDTO.setSize(size);
 
-        Page<MatchVO> page = matchService.getMatchList(queryDTO);
+        List<MatchVO> page = matchService.getMatchList(queryDTO);
         return Result.success(page);
     }
 

@@ -2,23 +2,31 @@ package com.unisport.service.impl;
 
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.common.BusinessException;
 import com.unisport.common.UserContext;
 import com.unisport.dto.CreatePostDTO;
+import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Category;
+import com.unisport.entity.Match;
 import com.unisport.entity.Post;
+import com.unisport.entity.User;
 import com.unisport.mapper.CategoryMapper;
 import com.unisport.mapper.PostMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.PostService;
+import com.unisport.vo.MatchVO;
+import com.unisport.vo.PostVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 帖子服务实现类
@@ -76,6 +84,61 @@ public class PostServiceImpl implements PostService {
 
         log.info("帖子发布成功，帖子ID：{}，用户ID：{}", post.getId(), userId);
         return post;
+    }
+
+    @Override
+    public List<PostVO> getPostList(PostQueryDTO postQueryDTO) {
+        log.info("查询帖子列表，参数：{}", postQueryDTO);
+
+        // ===== 1. 严格安全校验 =====
+        // 1.1 用户校验
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException("用户未登录");
+        }
+
+        // 1.2 用户存在性校验
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        Long schoolId = user.getSchoolId();
+
+        // 1.3 分类ID校验
+        if (postQueryDTO.getCategoryId() == null) {
+            throw new BusinessException("分类ID不能为空");
+        }
+
+        log.info("查询帖子列表，用户ID：{}, 学校: {}, 分类: {}", userId, schoolId, postQueryDTO.getCategoryId());
+
+        // 构建查询条件（MyBatis-Plus会自动添加 deleted=0 条件）
+        LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(Post::getSchoolId, schoolId)
+                   .eq(Post::getCategoryId, postQueryDTO.getCategoryId())
+                   .orderByDesc(Post::getCreatedAt);
+
+        // 执行分页查询
+        List<Post> posts = postMapper.selectList(queryWrapper);
+
+        // 转换为VO
+        List<PostVO> voList = posts.stream().map(post -> {
+            PostVO vo = new PostVO();
+            BeanUtils.copyProperties(post, vo);
+            
+            // 查询用户信息
+            User postUser = userMapper.selectById(post.getUserId());
+            if (postUser != null) {
+                vo.setUserName(postUser.getNickname());
+                vo.setUserAvatar(postUser.getAvatar());
+                vo.setSchoolName(postUser.getSchool());
+            }
+            
+            vo.setLiked(false); // TODO 默认未点赞
+            return vo;
+        }).collect(Collectors.toList());
+
+        log.info("查询到 {} 条帖子数据", voList.size());
+        return voList;
     }
 
     /**
@@ -153,7 +216,7 @@ public class PostServiceImpl implements PostService {
         post.setCommentsCount(0);
         
         // 设置状态为正常
-        post.setDeleted(1);
+        post.setDeleted(0);
         
         log.debug("帖子实体构建完成，用户ID：{}", userId);
         return post;

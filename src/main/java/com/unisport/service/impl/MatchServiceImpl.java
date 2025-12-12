@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,11 +37,9 @@ public class MatchServiceImpl implements MatchService {
     private final LeagueMapper leagueMapper;
 
     @Override
-    public Page<MatchVO> getMatchList(MatchQueryDTO queryDTO) {
+    public List<MatchVO> getMatchList(MatchQueryDTO queryDTO) {
         log.info("查询比赛列表，参数：{}", queryDTO);
 
-        // 构建分页对象
-        Page<Match> page = new Page<>(queryDTO.getCurrent(), queryDTO.getSize());
         // 获取用户信息
         Long userId = UserContext.getUserId();
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getId, userId));
@@ -52,12 +51,12 @@ public class MatchServiceImpl implements MatchService {
 
         // 按分类筛选
         if (queryDTO.getCategoryId() != null) {
-            League league = leagueMapper.selectOne(
+            List<League> leagues = leagueMapper.selectList(
                     new LambdaQueryWrapper<League>().eq(League::getSchoolId, schoolId)
                             .eq(League::getCategoryId, queryDTO.getCategoryId())
             );
-            if (league != null) {
-                queryWrapper.eq(Match::getLeagueId, league.getId());
+            if (leagues != null) {
+                queryWrapper.in(Match::getLeagueId, leagues.stream().map(League::getId).collect(Collectors.toList()));
             }
         }
 
@@ -72,36 +71,20 @@ public class MatchServiceImpl implements MatchService {
         // 按比赛时间倒序
         queryWrapper.orderByDesc(Match::getMatchTime);
 
-        // 执行分页查询
-        Page<Match> matchPage = matchMapper.selectPage(page, queryWrapper);
-
-        // 获取所有分类信息（用于填充分类名称）
-        List<Category> categories = categoryMapper.selectList(null);
-        Map<Integer, Category> categoryMap = categories.stream()
-            .collect(Collectors.toMap(Category::getId, c -> c));
-
-        // 转换为VO
-        Page<MatchVO> voPage = new Page<>(matchPage.getCurrent(), matchPage.getSize(), matchPage.getTotal());
-        List<MatchVO> voList = matchPage.getRecords().stream().map(match -> {
+        // 执行查询--转换VO
+        List<Match> matches = matchMapper.selectList(queryWrapper);
+        Category category = categoryMapper.selectById(queryDTO.getCategoryId());
+        List<MatchVO> voList = matches.stream().map(match -> {
             MatchVO vo = new MatchVO();
             BeanUtils.copyProperties(match, vo);
-            
-            // 填充分类信息
-            Category category = categoryMap.get(match.getCategoryId());
-            if (category != null) {
-                vo.setCategoryCode(category.getCode());
-                vo.setCategoryName(category.getName());
-            }
-            
+            vo.setCategoryCode(category.getCode());
+            vo.setCategoryName(category.getName());
+
             return vo;
         }).collect(Collectors.toList());
 
-        voPage.setRecords(voList);
-        log.info("查询到 {} ", voPage.getRecords());
-        voPage.setTotal(voList.size());
-
-        log.info("查询到 {} 条比赛记录", voPage.getTotal());
-        return voPage;
+        log.info("查询到 {} 条数据", voList.size());
+        return voList;
     }
 
     @Override

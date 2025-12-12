@@ -1,7 +1,12 @@
 package com.unisport.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.dto.CreatePostDTO;
+import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
+import com.unisport.vo.PostVO;
+
+import java.util.List;
 
 /**
  * 帖子服务接口
@@ -18,4 +23,6 @@ public interface PostService {
      * @return 发布成功的帖子实体
      */
     Post createPost(CreatePostDTO createPostDTO);
+
+    List<PostVO> getPostList(PostQueryDTO postQueryDTO);
 }

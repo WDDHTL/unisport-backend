@@ -25,4 +25,5 @@ public class BusinessException extends RuntimeException {
     public BusinessException(String message) {
         this(500, message);
     }
+
 }

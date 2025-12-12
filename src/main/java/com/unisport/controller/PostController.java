@@ -1,15 +1,22 @@
 package com.unisport.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.common.Result;
 import com.unisport.dto.CreatePostDTO;
+import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
 import com.unisport.service.PostService;
+import com.unisport.vo.MatchVO;
+import com.unisport.vo.PostVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 帖子控制器
@@ -53,5 +60,20 @@ public class PostController {
         Post post = postService.createPost(createPostDTO);
         
         return Result.success(post);
+    }
+
+    @GetMapping
+    @Operation(summary = "查询帖子列表", description = "获取所有帖子列表")
+    public Result<List<PostVO>> listPosts(
+            @Parameter(description = "运动分类ID", example = "1")
+            @RequestParam(required = true) Integer categoryId
+    ) {
+        log.info("接收查询帖子列表请求，分类ID：{}", categoryId);
+        PostQueryDTO postQueryDTO = new PostQueryDTO();
+        postQueryDTO.setCategoryId(categoryId);
+
+        List<PostVO> PostVOs = postService.getPostList(postQueryDTO);
+        return Result.success(PostVOs);
+
     }
 }
