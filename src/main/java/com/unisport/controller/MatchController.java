@@ -41,6 +41,10 @@ public class MatchController {
     public Result<List<MatchVO>> getMatchList(
         @Parameter(description = "运动分类代码", example = "football") 
         @RequestParam(required = true) Integer categoryId,
+        @Parameter(description = "联赛ID", example = "1")
+        @RequestParam(required = false, defaultValue = "0") Integer leagueId,
+        @Parameter(description = "学校ID", example = "1")
+        @RequestParam(required = false) Integer schoolId,
         
         @Parameter(description = "比赛状态：upcoming/live/finished/all", example = "upcoming") 
         @RequestParam(required = false, defaultValue = "all") String status
@@ -48,6 +52,7 @@ public class MatchController {
     ) {
         MatchQueryDTO queryDTO = new MatchQueryDTO();
         queryDTO.setCategoryId(categoryId);
+        queryDTO.setLeagueId(leagueId);
         queryDTO.setStatus(status);
 
         List<MatchVO> page = matchService.getMatchList(queryDTO);

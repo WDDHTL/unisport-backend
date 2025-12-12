@@ -19,18 +19,13 @@ public class MatchQueryDTO implements Serializable {
      */
     private Integer categoryId;
 
+    private Integer leagueId;
+
+    private Integer schoolId;
+
     /**
      * 比赛状态：upcoming/live/finished/all
      */
     private String status = "all";
 
-    /**
-     * 页码
-     */
-    private Integer current = 1;
-
-    /**
-     * 每页大小
-     */
-    private Integer size = 10;
 }

@@ -33,6 +33,8 @@ public class Match implements Serializable {
      */
     private Integer categoryId;
 
+    private Integer schoolId;
+
     /**
      * A队ID
      */

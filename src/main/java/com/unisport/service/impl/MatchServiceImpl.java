@@ -2,6 +2,7 @@ package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.common.BusinessException;
 import com.unisport.common.UserContext;
 import com.unisport.dto.MatchQueryDTO;
 import com.unisport.entity.*;
@@ -43,24 +44,24 @@ public class MatchServiceImpl implements MatchService {
         // 获取用户信息
         Long userId = UserContext.getUserId();
         User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getId, userId));
-        Long schoolId = user.getSchoolId();
-
+        // TODO long->int
+        queryDTO.setSchoolId(user.getSchoolId().intValue());
 
         // 构建查询条件
         LambdaQueryWrapper<Match> queryWrapper = new LambdaQueryWrapper<>();
 
-        // 按分类筛选
-        if (queryDTO.getCategoryId() != null) {
-            List<League> leagues = leagueMapper.selectList(
-                    new LambdaQueryWrapper<League>().eq(League::getSchoolId, schoolId)
-                            .eq(League::getCategoryId, queryDTO.getCategoryId())
-            );
-            if (leagues != null) {
-                queryWrapper.in(Match::getLeagueId, leagues.stream().map(League::getId).collect(Collectors.toList()));
-            }
+        // 构建查询参数
+        if (queryDTO.getLeagueId() != 0){
+            queryWrapper.eq(Match::getLeagueId, queryDTO.getLeagueId());
         }
-
-
+        if (queryDTO.getCategoryId() == null){
+            new BusinessException("获取比赛列表分类ID不能为空");
+        }
+        queryWrapper.eq(Match::getCategoryId, queryDTO.getCategoryId());
+        if (queryDTO.getSchoolId() == null){
+            new BusinessException("获取比赛列表学校ID不能为空");
+        }
+        queryWrapper.eq(Match::getSchoolId, queryDTO.getSchoolId());
 
         // 按状态筛选
         if (!"all".equals(queryDTO.getStatus())) {
