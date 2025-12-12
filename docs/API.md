@@ -601,6 +601,7 @@ Authorization: Bearer <JWT Token>
 | schoolId | Long | null | 学校ID（可选，筛选某学校的比赛） |
 | leagueId | Long | null | 联赛ID（可选，筛选某联赛的比赛） |
 | status | String | all | 比赛状态：upcoming/live/finished/all |
+| seasonYear | Integer/String | null | 年度赛季（可选，配合“全部赛事”年份下拉；后端按年份过滤，前端优先使用此参数） |
 
 **成功响应**:
 
@@ -633,10 +634,45 @@ Authorization: Bearer <JWT Token>
 ```
 
 **注意事项**:
-1. ⚠️ 按比赛时间倒序
+1. ⚠️ 按比赛时间倒序，`matchTime` 请返回标准 ISO 字符串（前端基于它解析年份作为兜底）
 2. ⚠️ 实时比赛每30秒轮询
-3. 💡 schoolId 和 leagueId 可用于筛选特定学校或联赛的比赛
+3. 💡 schoolId 和 leagueId 可用于筛选特定学校或联赛的比赛；“全部赛事”页会把联赛下拉的选项透传为 leagueId
 4. 💡 移动端应用不使用分页，后端返回所有比赛
+5. 💡 如果后端可直接返回 `season` 字段或支持 `seasonYear` 查询，可减少前端日期解析；建议额外提供 `GET /api/matches/season-years?categoryId=` 返回可选年份列表，供“年度赛季”下拉使用
+
+---
+
+#### 4.2.1 获取联赛列表（用于联赛下拉）
+
+**接口**: `GET /api/leagues`
+
+**用途**:
+- “全部赛事”页联赛下拉选项（按分类筛选联赛）
+- 其他需要按联赛筛选比赛/积分榜的入口
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| categoryId | Long | 是 | 运动分类ID（返回该分类下的联赛列表） |
+| schoolId | Long | 否 | 学校ID（可选，若联赛按学校维度拆分则提供） |
+
+**成功响应示例**:
+
+```json
+{
+  "code": 200,
+  "data": [
+    { "id": 11, "name": "2025 校园杯", "categoryId": 1 },
+    { "id": 12, "name": "院系联赛", "categoryId": 1 }
+  ]
+}
+```
+
+**注意事项**:
+1. 前端会将 `id` 作为 `leagueId` 传入 `/api/matches` 查询参数
+2. 建议返回状态字段（如 active/archived）便于前端隐藏已归档联赛
+3. 若暂不提供该接口，前端会 fallback 以当前分类下的比赛列表中 `league` 字段去重生成选项
 
 ---
 
