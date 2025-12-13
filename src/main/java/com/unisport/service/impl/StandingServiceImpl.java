@@ -37,21 +37,27 @@ public class StandingServiceImpl implements StandingService {
     private final UserMapper userMapper;
 
     @Override
-    public List<StandingVO> getStandings(Integer categoryId, Integer year) {
-        log.info("查询积分榜，分类id：{}，年份：{}",categoryId, year);
+    public List<StandingVO> getStandings(Integer categoryId, Integer leagueId,Integer year) {
+        log.info("查询积分榜，分类id：{}，联赛id：{}，年份：{}",categoryId, leagueId, year);
 
-        // 如果未指定年份，使用当前年份
-        if (year == null) {
-            year = LocalDate.now().getYear();
-        }
+//        // 如果未指定年份，使用当前年份
+//        if (year == null) {
+//            year = LocalDate.now().getYear();
+//        }
 
         // 获取用户学校
         Long userId = UserContext.getUserId();
         User user = userMapper.selectById(userId);
-        Long schoolId = user.getSchoolId();
+//        Long schoolId = user.getSchoolId();
+
+        if (user == null)
+            throw new RuntimeException("用户不存在");
 
         try {
-
+            if (leagueId == null) {
+                log.warn("联赛id不存在或已禁用：{}", leagueId);
+                return new java.util.ArrayList<>();
+            }
 
             if (categoryId == null) {
                 log.warn("运动分类id不存在或已禁用：{}", categoryId);
@@ -59,24 +65,24 @@ public class StandingServiceImpl implements StandingService {
             }
 
             // 查询该分类在指定年份、指定学校的联赛
-            League league = leagueMapper.selectOne(
-                new LambdaQueryWrapper<League>()
-                    .eq(League::getCategoryId, categoryId)
-                    .eq(League::getYear, year)
-                    .eq(League::getSchoolId, schoolId)
-                    .orderByDesc(League::getCreatedAt)
-                    .last("LIMIT 1")
-            );
+//            League league = leagueMapper.selectOne(
+//                new LambdaQueryWrapper<League>()
+//                    .eq(League::getCategoryId, categoryId)
+//                    .eq(League::getYear, year)
+//                    .eq(League::getSchoolId, schoolId)
+//                    .orderByDesc(League::getCreatedAt)
+//                    .last("LIMIT 1")
+//            );
 
-            if (league == null) {
-                log.warn("未找到对应的联赛，分类：{}，年份：{}", categoryId, year);
-                return new java.util.ArrayList<>();
-            }
+//            if (league == null) {
+//                log.warn("未找到对应的联赛，分类：{}，年份：{}", categoryId, year);
+//                return new java.util.ArrayList<>();
+//            }
 
             // 根据联赛ID查询积分榜，按排名升序排列
             List<Standing> standings = standingMapper.selectList(
                 new LambdaQueryWrapper<Standing>()
-                    .eq(Standing::getLeagueId, league.getId())
+                    .eq(Standing::getLeagueId, leagueId)
                     .orderByAsc(Standing::getRank)
             );
 

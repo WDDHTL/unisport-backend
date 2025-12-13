@@ -38,11 +38,14 @@ public class PlayerController {
             @Parameter(description = "运动分类id", example = "1", required = true)
             @RequestParam Integer categoryId,
 
+            @Parameter(description = "联赛id", example = "1", required = true)
+            @RequestParam Integer leagueId,
+
             @Parameter(description = "年份，默认当前年份", example = "2025")
             @RequestParam(required = false) Integer year
     ) {
-        log.info("请求查询球员榜，分类ID：{}，年份：{}", categoryId, year);
-        List<PlayerStatsVO> stats = playerService.getStats(categoryId, year);
+        log.info("请求查询球员榜，分类ID：{}，联赛：{}，年份：{}", categoryId, leagueId, year);
+        List<PlayerStatsVO> stats = playerService.getStats(categoryId, leagueId, year);
         return Result.success(stats);
     }
 }

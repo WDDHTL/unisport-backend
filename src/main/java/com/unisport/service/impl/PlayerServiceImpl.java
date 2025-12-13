@@ -41,8 +41,8 @@ public class PlayerServiceImpl implements PlayerService {
     private final UserMapper userMapper;
 
     @Override
-    public List<PlayerStatsVO> getStats(Integer categoryId, Integer year) {
-        log.info("查询球员榜，分类ID：{}，年份：{}", categoryId, year);
+    public List<PlayerStatsVO> getStats(Integer categoryId, Integer leagueId, Integer year) {
+        log.info("查询球员榜，分类ID：{}，联赛ID：{}，年份：{}", categoryId, leagueId, year);
         if (year == null){
             year = LocalDate.now().getYear();
         }
@@ -58,24 +58,24 @@ public class PlayerServiceImpl implements PlayerService {
                 return new java.util.ArrayList<>();
             }
 
-            // 查询该分类在指定年份、指定学校的联赛
-            League league = leagueMapper.selectOne(
-                    new LambdaQueryWrapper<League>()
-                            .eq(League::getCategoryId, categoryId)
-                            .eq(League::getYear, year)
-                            .eq(League::getSchoolId, schoolId)
-                            .orderByDesc(League::getCreatedAt)
-                            .last("LIMIT 1")
-            );
+//            // 查询该分类在指定年份、指定学校的联赛
+//            League league = leagueMapper.selectOne(
+//                    new LambdaQueryWrapper<League>()
+//                            .eq(League::getCategoryId, categoryId)
+//                            .eq(League::getYear, year)
+//                            .eq(League::getSchoolId, schoolId)
+//                            .orderByDesc(League::getCreatedAt)
+//                            .last("LIMIT 1")
+//            );
 
-            if (league == null) {
+            if (leagueId == null) {
                 log.warn("未找到对应的联赛，分类ID：{}，年份：{}", categoryId, year);
                 return new java.util.ArrayList<>();
             }
 
             List<PlayerStats> playerStats = playerMapper.selectList(
                     new LambdaQueryWrapper<PlayerStats>()
-                            .eq(PlayerStats::getLeagueId, league.getId())
+                            .eq(PlayerStats::getLeagueId, leagueId)
                             .orderByDesc(PlayerStats::getStatValue)
             );
 

@@ -38,12 +38,15 @@ public class StandingController {
     public Result<List<StandingVO>> getStandings(
         @Parameter(description = "运动分类代码", required = true)
         @RequestParam Integer categoryId,
+
+        @Parameter(description = "联赛分类代码", required = true)
+        @RequestParam Integer leagueId,
         
         @Parameter(description = "年份，默认当前年份", example = "2025")
         @RequestParam(required = false) Integer year
     ) {
-        log.info("请求查询积分榜，分类：{}，年份：{}", categoryId, year);
-        List<StandingVO> standings = standingService.getStandings(categoryId, year);
+        log.info("请求查询积分榜，分类：{}，联赛：{}, 年份：{}", categoryId, leagueId, year);
+        List<StandingVO> standings = standingService.getStandings(categoryId, leagueId, year);
         return Result.success(standings);
     }
 }
