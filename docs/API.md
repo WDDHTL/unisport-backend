@@ -258,6 +258,7 @@ Authorization: Bearer <JWT Token>
     "schoolId": 1,
     "department": "经管学院",
     "bio": "篮球爱好者",
+    "gender": 1,
     "followersCount": 120,
     "followingCount": 50,
     "postsCount": 35,
@@ -265,6 +266,8 @@ Authorization: Bearer <JWT Token>
   }
 }
 ```
+
+> gender 为整数：1=男性，0=女性。
 
 ---
 
@@ -284,9 +287,12 @@ Authorization: Bearer <JWT Token>
   "nickname": "张三丰",
   "avatar": "https://example.com/avatar.jpg",
   "bio": "热爱运动",
-  "gender": "male"
+  "gender": 1
 }
 ```
+
+**字段说明**:
+- `gender`：整数类型，1=男性，0=女性。
 
 **注意事项**:
 1. ⚠️ 只能修改自己的信息

@@ -3,6 +3,7 @@ package com.unisport.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.unisport.common.BusinessException;
 import com.unisport.common.UserContext;
+import com.unisport.dto.UpdateUserDTO;
 import com.unisport.entity.Post;
 import com.unisport.entity.User;
 import com.unisport.entity.UserFollow;
@@ -70,10 +71,67 @@ public class UserServiceImpl implements UserService {
                 .schoolId(targetUser.getSchoolId())
                 .department(targetUser.getDepartment())
                 .bio(targetUser.getBio())
+                .gender(targetUser.getGender())
                 .followersCount(followersCount)
                 .followingCount(followingCount)
                 .postsCount(postsCount)
                 .following(isFollowing)
                 .build();
+    }
+
+    @Override
+    public UserProfileVO updateUserProfile(Long userId, UpdateUserDTO updateUserDTO) {
+        Long currentUserId = UserContext.getUserId();
+        if (currentUserId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        if (!currentUserId.equals(userId)) {
+            throw new BusinessException(40301, "您没有权限修改该用户信息");
+        }
+
+        if (userMapper.selectById(userId) == null) {
+            throw new BusinessException(40401, "用户不存在");
+        }
+
+        log.info("更新用户基本信息，userId={}", userId);
+
+        User updateEntity = new User();
+        updateEntity.setId(userId);
+
+        if (updateUserDTO.getNickname() != null) {
+            String nickname = updateUserDTO.getNickname().trim();
+            if (nickname.isEmpty()) {
+                throw new BusinessException(40004, "昵称不能为空");
+            }
+            updateEntity.setNickname(nickname);
+        }
+        if (updateUserDTO.getAvatar() != null) {
+            updateEntity.setAvatar(updateUserDTO.getAvatar().trim());
+        }
+        if (updateUserDTO.getBio() != null) {
+            updateEntity.setBio(updateUserDTO.getBio().trim());
+        }
+        if (updateUserDTO.getGender() != null) {
+            Integer gender = updateUserDTO.getGender();
+            if (gender != 0 && gender != 1) {
+                throw new BusinessException(40004, "性别取值仅支持0（女）或1（男）");
+            }
+            updateEntity.setGender(gender);
+        }
+
+        boolean hasChanges = updateEntity.getNickname() != null
+                || updateEntity.getAvatar() != null
+                || updateEntity.getBio() != null
+                || updateEntity.getGender() != null;
+        if (!hasChanges) {
+            return getUserProfile(userId);
+        }
+
+        int rows = userMapper.updateById(updateEntity);
+        if (rows <= 0) {
+            throw new BusinessException(50001, "更新失败，请稍后重试");
+        }
+
+        return getUserProfile(userId);
     }
 }

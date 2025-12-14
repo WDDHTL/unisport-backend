@@ -212,7 +212,7 @@
 | department | VARCHAR(100) | NOT NULL | 院系 |
 | student_id | VARCHAR(30) | NULL | 学号 |
 | bio | VARCHAR(500) | NULL | 个人简介 |
-| gender | ENUM('male','female','other') | NULL | 性别 |
+| gender | INT | NULL | 性别（0:女性 1:男性） |
 | status | TINYINT | DEFAULT 1 | 账号状态（1:正常 0:禁用） |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |

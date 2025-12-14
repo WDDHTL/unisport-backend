@@ -64,9 +64,9 @@ public class User implements Serializable {
     private String bio;
 
     /**
-     * 性别：male-男, female-女, other-其他
+     * 性别：1-男，0-女
      */
-    private String gender;
+    private Integer gender;
 
     /**
      * 账号状态：1-正常, 0-禁用

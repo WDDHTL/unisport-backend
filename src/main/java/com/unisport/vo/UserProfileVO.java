@@ -42,6 +42,9 @@ public class UserProfileVO implements Serializable {
     @Schema(description = "个人简介", example = "篮球爱好者")
     private String bio;
 
+    @Schema(description = "性别：1-男，0-女", example = "1")
+    private Integer gender;
+
     @Schema(description = "粉丝数量", example = "120")
     private Long followersCount;
 

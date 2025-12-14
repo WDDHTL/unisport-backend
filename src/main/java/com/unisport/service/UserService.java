@@ -1,17 +1,27 @@
 package com.unisport.service;
 
+import com.unisport.dto.UpdateUserDTO;
 import com.unisport.vo.UserProfileVO;
 
 /**
- * 用户领域服务接口。
+ * User domain service interface.
  */
 public interface UserService {
 
     /**
-     * 根据用户ID获取用户主页信息。
+     * Get user profile by user id.
      *
-     * @param userId 目标用户ID
-     * @return 用户主页视图对象
+     * @param userId target user id
+     * @return profile view object
      */
     UserProfileVO getUserProfile(Long userId);
+
+    /**
+     * Update current user's profile.
+     *
+     * @param userId        user id from path
+     * @param updateUserDTO update payload
+     * @return updated profile view
+     */
+    UserProfileVO updateUserProfile(Long userId, UpdateUserDTO updateUserDTO);
 }
