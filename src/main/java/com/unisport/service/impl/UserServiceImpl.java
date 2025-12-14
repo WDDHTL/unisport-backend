@@ -1,7 +1,9 @@
 package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.common.BusinessException;
+import com.unisport.common.PageResult;
 import com.unisport.common.UserContext;
 import com.unisport.dto.UpdateUserDTO;
 import com.unisport.entity.Post;
@@ -11,10 +13,22 @@ import com.unisport.mapper.PostMapper;
 import com.unisport.mapper.UserFollowMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.UserService;
+import com.unisport.vo.FollowUserVO;
 import com.unisport.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 用户领域服务实现。
@@ -133,5 +147,140 @@ public class UserServiceImpl implements UserService {
         }
 
         return getUserProfile(userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void followUser(Long targetUserId) {
+        Long currentUserId = requireLogin();
+        validateTargetUser(targetUserId, currentUserId);
+
+        Long exists = userFollowMapper.selectCount(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowerId, currentUserId)
+                        .eq(UserFollow::getFollowingId, targetUserId)
+        );
+        if (exists != null && exists > 0) {
+            throw new BusinessException(40901, "请勿重复关注");
+        }
+
+        UserFollow follow = new UserFollow();
+        follow.setFollowerId(currentUserId);
+        follow.setFollowingId(targetUserId);
+
+        try {
+            int rows = userFollowMapper.insert(follow);
+            if (rows <= 0) {
+                throw new BusinessException(50001, "关注失败，请稍后重试");
+            }
+        } catch (DuplicateKeyException e) {
+            throw new BusinessException(40901, "请勿重复关注");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unfollowUser(Long targetUserId) {
+        Long currentUserId = requireLogin();
+        validateTargetUser(targetUserId, currentUserId);
+
+        int rows = userFollowMapper.delete(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowerId, currentUserId)
+                        .eq(UserFollow::getFollowingId, targetUserId)
+        );
+        if (rows <= 0) {
+            throw new BusinessException(40901, "尚未关注该用户");
+        }
+    }
+
+    @Override
+    public PageResult<FollowUserVO> getFollowingList(Long userId, long current, long size) {
+        if (userMapper.selectById(userId) == null) {
+            throw new BusinessException(40401, "用户不存在");
+        }
+        long pageNum = current <= 0 ? 1 : current;
+        long pageSize = size <= 0 ? 20 : size;
+
+        Page<UserFollow> page = userFollowMapper.selectPage(
+                new Page<>(pageNum, pageSize),
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowerId, userId)
+                        .orderByDesc(UserFollow::getCreatedAt)
+        );
+
+        List<Long> followingIds = page.getRecords().stream()
+                .map(UserFollow::getFollowingId)
+                .collect(Collectors.toList());
+
+        Map<Long, User> resolvedUserMap;
+        if (!CollectionUtils.isEmpty(followingIds)) {
+            List<User> users = userMapper.selectBatchIds(followingIds);
+            resolvedUserMap = users.stream().collect(Collectors.toMap(User::getId, Function.identity()));
+        } else {
+            resolvedUserMap = Collections.emptyMap();
+        }
+
+        Long currentUserId = UserContext.getUserId();
+        Set<Long> resolvedFollowings;
+        if (!CollectionUtils.isEmpty(followingIds) && currentUserId != null) {
+            if (currentUserId.equals(userId)) {
+                resolvedFollowings = followingIds.stream().collect(Collectors.toSet());
+            } else {
+                List<UserFollow> relations = userFollowMapper.selectList(
+                        new LambdaQueryWrapper<UserFollow>()
+                                .eq(UserFollow::getFollowerId, currentUserId)
+                                .in(UserFollow::getFollowingId, followingIds)
+                );
+                resolvedFollowings = relations.stream()
+                        .map(UserFollow::getFollowingId)
+                        .collect(Collectors.toSet());
+            }
+        } else {
+            resolvedFollowings = Collections.emptySet();
+        }
+
+        List<FollowUserVO> records = page.getRecords().stream()
+                .map(relation -> {
+                    User followee = resolvedUserMap.get(relation.getFollowingId());
+                    if (followee == null) {
+                        return null;
+                    }
+                    FollowUserVO vo = new FollowUserVO();
+                    vo.setId(followee.getId());
+                    vo.setNickname(followee.getNickname());
+                    vo.setAvatar(followee.getAvatar());
+                    vo.setSchoolId(followee.getSchoolId());
+                    vo.setSchool(followee.getSchool());
+                    vo.setDepartment(followee.getDepartment());
+                    vo.setBio(followee.getBio());
+                    vo.setGender(followee.getGender());
+                    vo.setFollowing(resolvedFollowings.contains(followee.getId()));
+                    return vo;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+
+        return PageResult.of(pageNum, pageSize, page.getTotal(), page.getPages(), records);
+    }
+
+    private void validateTargetUser(Long targetUserId, Long currentUserId) {
+        if (targetUserId == null) {
+            throw new BusinessException(40004, "目标用户ID不能为空");
+        }
+        if (targetUserId.equals(currentUserId)) {
+            throw new BusinessException(40004, "不能关注或取消关注自己");
+        }
+        if (userMapper.selectById(targetUserId) == null) {
+            throw new BusinessException(40401, "用户不存在");
+        }
+    }
+
+    private Long requireLogin() {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        return userId;
     }
 }
