@@ -1,0 +1,79 @@
+package com.unisport.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.unisport.common.BusinessException;
+import com.unisport.common.UserContext;
+import com.unisport.entity.Post;
+import com.unisport.entity.User;
+import com.unisport.entity.UserFollow;
+import com.unisport.mapper.PostMapper;
+import com.unisport.mapper.UserFollowMapper;
+import com.unisport.mapper.UserMapper;
+import com.unisport.service.UserService;
+import com.unisport.vo.UserProfileVO;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+/**
+ * 用户领域服务实现。
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class UserServiceImpl implements UserService {
+
+    private final UserMapper userMapper;
+    private final UserFollowMapper userFollowMapper;
+    private final PostMapper postMapper;
+
+    @Override
+    public UserProfileVO getUserProfile(Long userId) {
+        log.info("查询用户主页信息，目标用户ID={}", userId);
+
+        User targetUser = userMapper.selectById(userId);
+        if (targetUser == null) {
+            throw new BusinessException(40401, "用户不存在");
+        }
+
+        Long followersCount = userFollowMapper.selectCount(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowingId, userId)
+        );
+
+        Long followingCount = userFollowMapper.selectCount(
+                new LambdaQueryWrapper<UserFollow>()
+                        .eq(UserFollow::getFollowerId, userId)
+        );
+
+        Long postsCount = postMapper.selectCount(
+                new LambdaQueryWrapper<Post>()
+                        .eq(Post::getUserId, userId)
+        );
+
+        boolean isFollowing = false;
+        Long currentUserId = UserContext.getUserId();
+        if (currentUserId != null && !currentUserId.equals(userId)) {
+            Long relationCount = userFollowMapper.selectCount(
+                    new LambdaQueryWrapper<UserFollow>()
+                            .eq(UserFollow::getFollowerId, currentUserId)
+                            .eq(UserFollow::getFollowingId, userId)
+            );
+            isFollowing = relationCount != null && relationCount > 0;
+        }
+
+        return UserProfileVO.builder()
+                .id(targetUser.getId())
+                .nickname(targetUser.getNickname())
+                .avatar(targetUser.getAvatar())
+                .school(targetUser.getSchool())
+                .schoolId(targetUser.getSchoolId())
+                .department(targetUser.getDepartment())
+                .bio(targetUser.getBio())
+                .followersCount(followersCount)
+                .followingCount(followingCount)
+                .postsCount(postsCount)
+                .following(isFollowing)
+                .build();
+    }
+}

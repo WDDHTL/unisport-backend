@@ -21,13 +21,15 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String requestUri = request.getRequestURI();
+        // 去掉 context-path，避免 /api 前缀影响白名单匹配
+        String path = requestUri.substring(request.getContextPath().length());
 
         // OPTIONS 预检请求直接放行
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             return true;
         }
 
-        if (isWhitelist(requestUri)) {
+        if (isWhitelist(path, request.getMethod())) {
             return true;
         }
 
@@ -60,13 +62,13 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         UserContext.clear();
     }
 
-    private boolean isWhitelist(String uri) {
+    private boolean isWhitelist(String uri, String method) {
+        // 鉴权白名单（无需登录）
         if (uri.startsWith("/auth/login") || uri.startsWith("/auth/register")) {
             return true;
         }
-        if (uri.startsWith("/swagger-ui")
-                || uri.startsWith("/v3/api-docs")
-                || uri.startsWith("/doc.html")) {
+        // Swagger 文档
+        if (uri.startsWith("/swagger-ui") || uri.startsWith("/v3/api-docs") || uri.startsWith("/doc.html")) {
             return true;
         }
         return false;

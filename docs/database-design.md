@@ -592,30 +592,47 @@
 > 6. **个人比赛**：使用 player_a_id 和 player_b_id 关联 team_members 表
 > 7. **比赛日程**：按 match_time 排序展示比赛日程表
 > 8. **积分计算**：根据比赛结果更新积分榜
+> 9. **学校比赛**：每场比赛归属于一个学校，不支持跨校比赛
+> 10. **按学校筛选**：用户可以查看特定学校的比赛列表
 > 
 > **设计特点：**
 > - **团体/个人兼容**：支持团队项目和个人项目两种比赛形式
 > - **名称冗余**：保留 team_a_name 和 team_b_name 方便显示
 > - **状态跟踪**：实时更新比赛状态（upcoming/live/finished）
+> - **学校关联**：每场比赛必须关联到一个学校
 > 
 > **典型操作：**
-> - 创建比赛：INSERT 新比赛记录
+> - 创建比赛：INSERT 新比赛记录（必须指定学校）
 > - 最近比赛：SELECT WHERE category_id = ? ORDER BY match_time DESC LIMIT 10
 > - 进行中比赛：SELECT WHERE status = 'live'
 > - 更新比分：UPDATE score_a = ?, score_b = ?
 > - 更新状态：UPDATE status = 'finished'
 > - 按联赛查询：SELECT WHERE league_id = ? ORDER BY match_time
+> - 按学校查询：SELECT WHERE school_id = ? AND category_id = ? ORDER BY match_time
 
 **设计说明：**
 > - **团队项目**：使用 `team_a_id` 和 `team_b_id` 关联到 teams 表
 > - **个人项目**：使用 `player_a_id` 和 `player_b_id` 关联到 `team_members` 表（球员由管理员录入）
 > - 为了显示方便，同时保留 `team_a_name` 和 `team_b_name` 字段存储名称
+> 
+> ⚠️ **软连接设计**：school_id 字段不设置外键约束，仅通过业务逻辑保证数据一致性。
+> 
+> **原因：**
+> - 避免因物理外键导致的数据插入失败
+> - 提高数据操作的灵活性
+> - 业务层负责维护 school_id 的有效性
+> 
+> **业务规则：**
+> 1. school_id 必须与 league_id 关联的联赛的 school_id 保持一致（业务层校验）
+> 2. 创建比赛时，school_id 从关联的联赛自动获取
+> 3. 不同学校的联赛不能创建跨校比赛
 
 | 字段名 | 数据类型 | 约束 | 说明 |
 |--------|---------|------|------|
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 比赛ID |
 | league_id | BIGINT | NOT NULL | 联赛ID |
 | category_id | INT | NOT NULL | 运动分类ID |
+| school_id | BIGINT | NOT NULL | 学校ID（比赛所属学校，软关联） |
 | team_a_id | BIGINT | NULL | A队ID（团队项目） |
 | team_b_id | BIGINT | NULL | B队ID（团队项目） |
 | player_a_id | BIGINT | NULL | A选手ID（个人项目，关联team_members表） |
@@ -634,6 +651,7 @@
 - PRIMARY KEY (id)
 - INDEX idx_league (league_id)
 - INDEX idx_category_time (category_id, match_time)
+- INDEX idx_school_time (school_id, match_time)
 - INDEX idx_status (status)
 
 **外键：**

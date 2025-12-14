@@ -588,20 +588,19 @@ Authorization: Bearer <JWT Token>
 **接口**: `GET /api/matches`
 
 **使用场景**:
-- 首页展示最近比赛
-- 全部赛事列表
+- 首页近期赛事列表
+- 全部赛事页面（联赛下拉筛选 + 按当前分类展示）
 
 **前端页面**: `MatchList.tsx`, `AllMatches.tsx`
 
 **查询参数**:
 
 | 参数 | 类型 | 默认值 | 说明 |
-|------|------|-------|------|
-| categoryId | Long | null | 运动分类ID（可选，筛选某运动分类的比赛） |
-| schoolId | Long | null | 学校ID（可选，筛选某学校的比赛） |
-| leagueId | Long | null | 联赛ID（可选，筛选某联赛的比赛） |
-| status | String | all | 比赛状态：upcoming/live/finished/all |
-| seasonYear | Integer/String | null | 年度赛季（可选，配合“全部赛事”年份下拉；后端按年份过滤，前端优先使用此参数） |
+|------|------|--------|------|
+| categoryId | Long | 无 | 运动分类ID，首页/全部赛事进入时必传（1=足球、2=篮球、3=羽毛球、4=乒乓球、5=健身） |
+| leagueId | Long | null | 联赛ID，可选；`AllMatches` 联赛下拉的 value |
+| schoolId | Long | null | 学校ID，可选；如需按学校隔离联赛/赛事时使用 |
+| status | String | all | 比赛状态：upcoming / live / finished / all |
 
 **成功响应**:
 
@@ -611,35 +610,52 @@ Authorization: Bearer <JWT Token>
   "data": {
     "records": [
       {
-        "id": 1,
-        "leagueId": 1,
-        "leagueName": "2025新生杯",
-        "schoolId": 1,
-        "schoolName": "清华大学",
+        "id": 101,
         "categoryCode": "football",
         "categoryName": "足球",
+        "leagueId": 11,
+        "leagueName": "2025 新生杯",
         "teamAName": "计算机系",
         "teamBName": "经管学院",
         "scoreA": 2,
         "scoreB": 1,
         "status": "finished",
-        "matchTime": "2025-11-30T16:00:00",
+        "matchTime": "2025-12-12T16:00:00+08:00",
         "location": "北区体育场"
       }
     ],
-    "total": 25,
-    "pages": 3
+    "total": 12,
+    "current": 1,
+    "size": 20,
+    "pages": 1
   }
 }
 ```
 
-**注意事项**:
-1. ⚠️ 按比赛时间倒序，`matchTime` 请返回标准 ISO 字符串（前端基于它解析年份作为兜底）
-2. ⚠️ 实时比赛每30秒轮询
-3. 💡 schoolId 和 leagueId 可用于筛选特定学校或联赛的比赛；“全部赛事”页会把联赛下拉的选项透传为 leagueId
-4. 💡 移动端应用不使用分页，后端返回所有比赛
-5. 💡 如果后端可直接返回 `season` 字段或支持 `seasonYear` 查询，可减少前端日期解析；建议额外提供 `GET /api/matches/season-years?categoryId=` 返回可选年份列表，供“年度赛季”下拉使用
+**字段说明**:
 
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | Long | 比赛ID |
+| categoryCode | String | 运动分类code（如 football、basketball），用于前端匹配图标/分类 |
+| categoryName | String | 运动分类名称 |
+| leagueId | Long | 联赛ID（联赛筛选时回传） |
+| leagueName | String | 联赛名称；顶部“联赛筛选”下拉使用 |
+| teamAName | String | A队名称 |
+| teamBName | String | B队名称 |
+| scoreA | Integer | A队得分，未开始可返回0 |
+| scoreB | Integer | B队得分，未开始可返回0 |
+| status | String | 比赛状态：upcoming / live / finished |
+| matchTime | String | 开赛时间，ISO 8601 字符串，前端用于展示“MM-DD HH:mm”并提取年份徽标 |
+| location | String | 比赛地点（可选，用于详情或后续展示） |
+
+**注意事项**:
+1. 按比赛时间倒序返回；`matchTime` 必须可被 `new Date()` 正确解析（含时区信息最佳），否则无法生成赛季年份徽标。
+2. `status=upcoming` 时前端展示 “VS”，`live/finished` 展示比分，请保证状态准确。
+3. `leagueName` 请务必返回，用于“联赛筛选”下拉；如缺失前端会退化为 `categoryName + "联赛"`。
+4. 若后端支持分页请使用统一分页格式；如果一次性返回数组，前端也已兼容但推荐分页。
+5. `schoolId`、`leagueId` 仅在需要按学校/联赛过滤时传入：首页默认不传，全部赛事页在用户选择联赛时传入。
+6. 如后续提供赛季/年份筛选，可扩展 `GET /api/matches/season-years?categoryId=` 供下拉使用（当前页面未开启该筛选）。
 ---
 
 #### 4.2.1 获取联赛列表（用于联赛下拉）
@@ -673,6 +689,36 @@ Authorization: Bearer <JWT Token>
 1. 前端会将 `id` 作为 `leagueId` 传入 `/api/matches` 查询参数
 2. 建议返回状态字段（如 active/archived）便于前端隐藏已归档联赛
 3. 若暂不提供该接口，前端会 fallback 以当前分类下的比赛列表中 `league` 字段去重生成选项
+
+---
+
+#### 4.2.2 获取赛季年份列表（用于年度赛季下拉）
+
+**接口**: `GET /api/matches/season-years`
+
+**用途**:
+- “全部赛事”页年度赛季下拉选项（按分类筛选可选年份）
+- 其他需要按年份过滤比赛的场景
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| categoryId | Long | 是 | 运动分类ID |
+
+**成功响应示例**:
+
+```json
+{
+  "code": 200,
+  "data": [2025, 2024, 2023]
+}
+```
+
+**注意事项**:
+1. 返回值为年份数组，按从新到旧排序；前端直接渲染下拉。
+2. 若无数据可返回空数组，前端会禁用下拉并提示“暂无可用年份”。
+3. 该接口优先于前端基于 `matchTime` 的年份解析，可减少解析误差。
 
 ---
 
@@ -732,8 +778,8 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| leagueId | Long | 是 | 联赛ID（必须指定联赛） |
-| categoryId | Long | 否 | 运动分类ID（兼容旧版本） |
+| leagueId | Long | 是 | 联赛ID（必须指定联赛，默认为下拉框第一个选项） |
+| categoryId | Long | 是 | 运动分类ID |
 | year | Integer | 否 | 年份，默认当前年份（兼容旧版本） |
 
 **成功响应**:
@@ -761,7 +807,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. ⚠️ 计分规则：胜3分、平1分、负0分
 2. 💡 缓存积分榜数据
-3. 💡 新版本优先使用 leagueId 查询，categoryId+year 仅作为兼容
+3. 💡 leagueId 和 categoryId 均为必填，未操作时前端默认使用联赛下拉第一项；year 仅用于历史数据
 
 ---
 
@@ -778,8 +824,8 @@ Authorization: Bearer <JWT Token>
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| leagueId | Long | 是 | 联赛ID（必须指定联赛） |
-| categoryId | Long | 否 | 运动分类ID（兼容旧版本） |
+| leagueId | Long | 是 | 联赛ID（必须指定联赛，默认为下拉框第一个选项） |
+| categoryId | Long | 是 | 运动分类ID |
 | year | Integer | 否 | 年份（兼容旧版本） |
 
 **成功响应**:
@@ -802,7 +848,7 @@ Authorization: Bearer <JWT Token>
 ```
 
 **注意事项**:
-1. 💡 新版本优先使用 leagueId 查询，categoryId+year 仅作为兼容
+1. 💡 leagueId 和 categoryId 均为必填，默认使用联赛下拉第一项；year 仅用于历史数据
 2. 💡 每年的球员统计按联赛区分
 
 ---
