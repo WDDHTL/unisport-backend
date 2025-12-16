@@ -3,7 +3,9 @@ package com.unisport.controller;
 import com.unisport.common.PageResult;
 import com.unisport.common.Result;
 import com.unisport.dto.UpdateUserDTO;
+import com.unisport.service.EducationService;
 import com.unisport.service.UserService;
+import com.unisport.vo.EducationVO;
 import com.unisport.vo.FollowUserVO;
 import com.unisport.vo.UserProfileVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * User info endpoints.
  */
@@ -32,6 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
+    private final EducationService educationService;
 
     @GetMapping("/{id}")
     @Operation(summary = "获取用户信息", description = "用于用户主页、帖子作者信息展示")
@@ -74,5 +79,13 @@ public class UserController {
         log.info("查询用户的关注列表，userId={}，current={}，size={}", userId, current, size);
         PageResult<FollowUserVO> page = userService.getFollowingList(userId, current, size);
         return Result.success(page);
+    }
+
+    @GetMapping("/{id}/educations")
+    @Operation(summary = "获取用户教育经历列表", description = "按主要教育经历优先、创建时间倒序排列")
+    public Result<List<EducationVO>> listUserEducations(@PathVariable("id") Long userId) {
+        log.info("接到获取用户教育经历列表请求，userId={}", userId);
+        List<EducationVO> educations = educationService.listUserEducations(userId);
+        return Result.success(educations);
     }
 }
