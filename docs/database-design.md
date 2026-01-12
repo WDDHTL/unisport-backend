@@ -148,7 +148,7 @@
 | grade | INT | NULL | 年级（如2024） |
 | major | VARCHAR(100) | NULL | 专业 |
 | class_name | VARCHAR(50) | NULL | 班级 |
-| gender | ENUM('male','female') | NULL | 性别 |
+| gender | INT | NULL | 性别（0:女性 1:男性） |
 | phone | VARCHAR(20) | NULL | 手机号 |
 | email | VARCHAR(100) | NULL | 邮箱 |
 | status | TINYINT | DEFAULT 1 | 状态（1:在校 0:毕业/离校） |
@@ -178,27 +178,22 @@
 > 👤 **用户身份核心** - 所有用户相关功能的基础数据表
 > 
 > **应用场景：**
-> 1. **用户注册**：新用户通过学号或手机号注册，创建账号并设置个人信息，必须选择学校（绑定school_id）
+> 1. **用户注册**：新用户通过学号或手机号注册，创建账号并设置个人信息
 > 2. **用户登录**：验证 account 和 password，生成登录凭证（JWT Token）
-> 3. **个人主页**：展示用户的昵称、头像、学校、院系、个人简介等信息
+> 3. **个人主页**：展示用户的昵称、头像、个人简介等信息，学校和学院信息从 user_educations 表获取
 > 4. **编辑资料**：用户在"编辑个人资料"页面修改昵称、头像、简介等
-> 5. **用户列表**：管理端查看所有用户，按学校、院系筛选
+> 5. **用户列表**：管理端查看所有用户
 > 6. **账号管理**：管理员可以禁用/启用用户账号（status 字段）
 > 7. **社交功能基础**：发帖、评论、点赞等所有操作都需要关联 user_id
-> 8. **学校关联**：school_id标识用户当前就读学校，用于首页、比赛、帖子等功能获取学校信息
-> 9. **教育经历联动**：添加新教育经历成功后自动更新school_id为新学校
-> 10. **数据权限控制**：发帖时自动从school_id获取学校信息，用户只能访问当前就读学校的数据
+> 8. **教育经历关联**：用户的学校、学院信息通过 user_educations 表维护
 > 
 > **典型操作：**
-> - 注册：INSERT 新用户记录，密码使用 bcrypt 加密，包含学号和school_id信息
+> - 注册：INSERT 新用户记录，密码使用 bcrypt 加密
 > - 登录：SELECT WHERE account = ? 验证密码
 > - 查询用户：SELECT WHERE id = ? 获取用户详情
-> - 更新资料：UPDATE 昵称、头像、bio等字段（school_id仅通过教育经历更新）
-> - 按学校查询：SELECT WHERE school_id = ?
-> - 按院系统计：GROUP BY school, department
+> - 更新资料：UPDATE 昵称、头像、bio等字段
 > - 学号查询：SELECT WHERE student_id = ? 用于验证学号唯一性
-> - 更新当前学校：UPDATE school_id = ? WHERE id = ?（添加教育经历时自动执行）
-> - 获取当前学校用于发帖：SELECT school_id WHERE id = ?
+> - 获取用户学校：JOIN user_educations WHERE is_primary = 1
 
 | 字段名 | 数据类型 | 约束 | 说明 |
 |--------|---------|------|------|
@@ -207,9 +202,6 @@
 | password | VARCHAR(255) | NOT NULL | 密码（加密存储） |
 | nickname | VARCHAR(50) | NOT NULL | 昵称 |
 | avatar | VARCHAR(500) | NULL | 头像URL |
-| school | VARCHAR(100) | NOT NULL | 学校名称 |
-| school_id | BIGINT | NOT NULL, DEFAULT 1 | 学校ID（当前就读学校） |
-| department | VARCHAR(100) | NOT NULL | 院系 |
 | student_id | VARCHAR(30) | NULL | 学号 |
 | bio | VARCHAR(500) | NULL | 个人简介 |
 | gender | INT | NULL | 性别（0:女性 1:男性） |
@@ -220,8 +212,6 @@
 **索引：**
 - PRIMARY KEY (id)
 - UNIQUE KEY (account)
-- INDEX idx_school_dept (school, department)
-- INDEX idx_school_id (school_id)
 - INDEX idx_student_id (student_id)
 
 ---
@@ -329,6 +319,7 @@
 | end_date | VARCHAR(10) | NULL | 结束时间（NULL表示至今） |
 | is_primary | TINYINT | DEFAULT 0 | 是否为主要教育经历（1:是 0:否） |
 | status | ENUM('pending','verified','failed') | DEFAULT 'pending' | 验证状态 |
+| deleted | TINYINT | DEFAULT 0 | 逻辑删除（0:未删除 1:已删除，MyBatis Plus） |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
 
@@ -338,6 +329,7 @@
 - INDEX idx_school_dept (school_id, department_id)
 - INDEX idx_student_id (student_id)
 - INDEX idx_status (status)
+- INDEX idx_deleted (deleted)
 - UNIQUE KEY uk_user_school_student (user_id, school_id, student_id)
 
 **外键：**
@@ -842,16 +834,16 @@
 > 📱 **核心社交功能** - 用户分享运动动态的主要载体
 > 
 > **应用场景：**
-> 1. **发布动态**：用户在首页点击"发帖"按钮，分享运动心得、比赛感想、训练打卡等内容，发帖时自动绑定用户当前就读学校
+> 1. **发布动态**：用户在首页点击"发帖"按钮，分享运动心得、比赛感想、训练打卡等内容，发帖时通过user_educations关联学校
 > 2. **动态流展示**：首页按运动分类（足球/篮球/羽毛球等）展示相关帖子列表，仅显示当前用户所在学校的帖子
 > 3. **个人主页**：在"我的发帖"页面查看自己发布的所有动态
 > 4. **内容分类**：根据 category_id 筛选特定运动类型的帖子
 > 5. **热门内容**：根据 likes_count 和 comments_count 推荐热门动态
 > 6. **时间排序**：按 created_at 倒序显示最新动态
-> 7. **学校隔离**：用户只能查看当前就读学校（users.school_id）的帖子，切换学校后无法看到旧学校的帖子
+> 7. **学校隔离**：用户只能查看当前就读学校的帖子，通过user_educations的主教育经历(is_primary=1)判断
 > 
 > **典型操作：**
-> - 创建帖子：INSERT 新记录，支持文字 + 多图，school_id从users.school_id自动获取
+> - 创建帖子：INSERT 新记录，支持文字 + 多图，school_id从user_educations的主教育经历获取
 > - 查询动态流：SELECT WHERE category_id = ? AND school_id = ? AND deleted = 0 ORDER BY created_at DESC
 > - 按学校查询：SELECT WHERE school_id = ? AND deleted = 0 ORDER BY created_at DESC
 > - 更新互动数：UPDATE likes_count/comments_count（触发器自动更新）
@@ -887,12 +879,12 @@
 > ⚠️ **软连接设计**：school_id 字段不设置外键约束，仅通过业务逻辑保证数据一致性。
 > 
 > **业务规则：**
-> 1. 发帖时，school_id 自动从当前用户的 users.school_id 获取，用户不可见也不可修改
-> 2. 用户切换学校后（添加新教育经历），旧帖子的 school_id 保持不变
-> 3. 用户只能查看当前 users.school_id 匹配的帖子，切换学校后无法看到旧学校的帖子（包括自己的）
-> 4. 如果用户已毕业（users.school_id 为 NULL），禁止发帖
+> 1. 发帖时，school_id 自动从用户主教育经历（user_educations.is_primary=1）的 school_id 获取，用户不可见也不可修改
+> 2. 用户切换学校后（设置新的主教育经历），旧帖子的 school_id 保持不变
+> 3. 用户只能查看当前主教育经历学校匹配的帖子，切换学校后无法看到旧学校的帖子（包括自己的）
+> 4. 如果用户没有主教育经历（user_educations.is_primary=1不存在），禁止发帖
 > 5. 已毕业用户的帖子不删除，同校在读学生仍可查看
-> 6. 应用层在发帖时强制验证 users.school_id 非空且在 schools 表中存在
+> 6. 应用层在发帖时强制验证用户有主教育经历且学校存在于 schools 表中
 
 ---
 

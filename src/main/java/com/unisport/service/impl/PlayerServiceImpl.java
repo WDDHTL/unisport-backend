@@ -42,15 +42,19 @@ public class PlayerServiceImpl implements PlayerService {
 
     @Override
     public List<PlayerStatsVO> getStats(Integer categoryId, Integer leagueId, Integer year) {
-        log.info("查询球员榜，分类ID：{}，联赛ID：{}，年份：{}", categoryId, leagueId, year);
         if (year == null){
             year = LocalDate.now().getYear();
         }
 
-        // 获取用户学校
         Long userId = UserContext.getUserId();
-        User user = userMapper.selectById(userId);
-        Long schoolId = user.getSchoolId();
+        Long schoolId = UserContext.getSchoolId();
+        if (schoolId == null && userId != null) {
+            User user = userMapper.selectById(userId);
+            if (user != null) {
+                schoolId = user.getSchoolId();
+            }
+        }
+        log.info("查询球员榜，分类ID：{}，联赛ID：{}，年份：{}，学校：{}", categoryId, leagueId, year, schoolId);
 
         try {
             if (categoryId == null) {

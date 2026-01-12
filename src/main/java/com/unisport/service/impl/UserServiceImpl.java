@@ -81,9 +81,9 @@ public class UserServiceImpl implements UserService {
                 .id(targetUser.getId())
                 .nickname(targetUser.getNickname())
                 .avatar(targetUser.getAvatar())
-                .school(targetUser.getSchool())
+//                .school(targetUser.getSchool())
                 .schoolId(targetUser.getSchoolId())
-                .department(targetUser.getDepartment())
+//                .department(targetUser.getDepartment())
                 .bio(targetUser.getBio())
                 .gender(targetUser.getGender())
                 .followersCount(followersCount)
@@ -251,8 +251,8 @@ public class UserServiceImpl implements UserService {
                     vo.setNickname(followee.getNickname());
                     vo.setAvatar(followee.getAvatar());
                     vo.setSchoolId(followee.getSchoolId());
-                    vo.setSchool(followee.getSchool());
-                    vo.setDepartment(followee.getDepartment());
+//                    vo.setSchool(followee.getSchool());
+//                    vo.setDepartment(followee.getDepartment());
                     vo.setBio(followee.getBio());
                     vo.setGender(followee.getGender());
                     vo.setFollowing(resolvedFollowings.contains(followee.getId()));

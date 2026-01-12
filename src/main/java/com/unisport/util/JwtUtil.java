@@ -25,20 +25,21 @@ public class JwtUtil {
     /**
      * 生成JWT Token
      * 
-     * 将用户ID和账号信息编码到Token中
-     * Token包含：
+     * 将用户标识及业务所需的额外信息编码到Token中
+     * 常用负载字段：
      * - userId: 用户ID
      * - account: 用户账号
+     * - nickname/avatar: 用户信息
+     * - schoolId: 当前学校ID
      * - iat: 签发时间
      * - exp: 过期时间
      *
-     * @param userId 用户ID
-     * @param account 用户账号
+     * @param claims 自定义负载，需包含用户信息及当前学校ID等
      * @param secret JWT密钥
      * @param expiration 过期时间（毫秒）
      * @return JWT Token字符串
      */
-    public static String generateToken(Long userId, String account, String secret, Long expiration) {
+    public static String generateToken(Map<String, Object> claims, String secret, Long expiration) {
         try {
             // 当前时间
             Date now = new Date();
@@ -46,22 +47,23 @@ public class JwtUtil {
             Date expirationDate = new Date(now.getTime() + expiration);
 
             // 构建Token的载荷（Payload）
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("userId", userId);
-            claims.put("account", account);
+            Map<String, Object> payload = new HashMap<>();
+            if (claims != null) {
+                payload.putAll(claims);
+            }
 
             // 生成密钥
             SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 
             // 生成JWT Token
             String token = Jwts.builder()
-                    .claims(claims)                     // 设置载荷
+                    .claims(payload)                    // 设置载荷
                     .issuedAt(now)                      // 签发时间
                     .expiration(expirationDate)         // 过期时间
                     .signWith(key)                      // 签名算法和密钥
                     .compact();
 
-            log.debug("JWT Token生成成功，用户ID：{}，账号：{}", userId, account);
+            log.debug("JWT Token生成成功，用户ID：{}", payload.get("userId"));
             return token;
 
         } catch (Exception e) {
@@ -123,6 +125,18 @@ public class JwtUtil {
     public static String getAccountFromToken(String token, String secret) {
         Claims claims = parseToken(token, secret);
         return claims.get("account", String.class);
+    }
+
+    /**
+     * 从Token中获取用户当前学校ID
+     *
+     * @param token JWT Token字符串
+     * @param secret JWT密钥
+     * @return 学校ID
+     */
+    public static Long getSchoolIdFromToken(String token, String secret) {
+        Claims claims = parseToken(token, secret);
+        return claims.get("schoolId", Long.class);
     }
 
     /**

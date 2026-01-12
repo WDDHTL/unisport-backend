@@ -66,7 +66,17 @@ public class PostServiceImpl implements PostService {
         log.info("开始处理发布帖子，用户ID：{}", userId);
 
         // 获取当前用户的学校id
-        Long schoolId = userMapper.selectById(userId).getSchoolId();
+        Long schoolId = UserContext.getSchoolId();
+        if (schoolId == null) {
+            User currentUser = userMapper.selectById(userId);
+            if (currentUser == null) {
+                throw new BusinessException(40401, "用户不存在");
+            }
+            schoolId = currentUser.getSchoolId();
+        }
+        if (schoolId == null) {
+            throw new BusinessException(40004, "学校信息缺失");
+        }
 
         // 3. 检查发帖频率限制（1分钟内最多3条）
         validatePostFrequency(userId);
@@ -97,12 +107,14 @@ public class PostServiceImpl implements PostService {
             throw new BusinessException("用户未登录");
         }
 
-        // 1.2 用户存在性校验
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
+        Long schoolId = UserContext.getSchoolId();
+        if (schoolId == null) {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new BusinessException("用户不存在");
+            }
+            schoolId = user.getSchoolId();
         }
-        Long schoolId = user.getSchoolId();
 
         // 1.3 分类ID校验
         if (postQueryDTO.getCategoryId() == null) {
@@ -130,7 +142,6 @@ public class PostServiceImpl implements PostService {
             if (postUser != null) {
                 vo.setUserName(postUser.getNickname());
                 vo.setUserAvatar(postUser.getAvatar());
-                vo.setSchoolName(postUser.getSchool());
             }
             
             vo.setLiked(false); // TODO 默认未点赞

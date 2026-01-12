@@ -137,9 +137,6 @@ Authorization: Bearer <JWT Token>
     "id": 1,
     "account": "2024001",
     "nickname": "2024001",
-    "school": "清华大学",
-    "schoolId": 1,
-    "department": "计算机系",
     "studentId": "2024001001",
     "createdAt": "2025-12-01T10:00:00"
   }
@@ -168,8 +165,8 @@ Authorization: Bearer <JWT Token>
    SELECT * FROM students 
    WHERE student_id = ? 
      AND school_id = ? 
-     AND department_id = ? 
-     AND status = 1
+      AND department_id = ? 
+      AND status = 1
    ```
    - 如果查询到记录：验证通过，允许注册
    - 如果查询不到：注册失败，返回错误码 40005
@@ -180,14 +177,22 @@ Authorization: Bearer <JWT Token>
    - users.school_id 字段记录当前就读学校ID
    - 默认昵称为账号，用户可后续修改
 
+4. 🎓 **写入教育经历（主记录）**：
+   - 向 `user_educations` 表新增一条记录
+   - 字段：`user_id`、`school_id`、`department_id`、`student_id`
+   - 状态：`status=verified`，`is_primary=true`
+   - 作为当前教育经历（start/end 可为空，后续可补充）
+
 **注意事项**:
 1. ⚠️ 密码使用 BCrypt 加密存储
 2. ⚠️ 账号唯一性校验
 3. ⚠️ 学号必须在 students 表中存在且学校/学院信息匹配
 4. ⚠️ 学生状态必须为在校（status=1）
 5. ⚠️ schoolId 为必填字段，注册时即绑定用户当前就读学校
-6. 💡 前端提供学校学院下拉选择（调用 GET /api/schools 和 GET /api/departments）
-7. 💡 学号输入框实时验证格式
+6. ⚠️ 注册成功响应仅返回用户基础信息，不再包含 school、schoolId、department、departmentId 等学校/学院字段
+7. 💡 前端提供学校学院下拉选择（调用 GET /api/schools 和 GET /api/departments）
+8. 💡 学号输入框实时验证格式
+9. 💡 注册成功后会自动生成一条“当前教育经历”主记录，可在“教育经历”页继续补充起止时间等信息
 
 ---
 
@@ -226,10 +231,15 @@ Authorization: Bearer <JWT Token>
 }
 ```
 
+**Token 负载说明**:
+- `userId`、`account`、`nickname`、`avatar`
+- `schoolId`：主要教育经历的学校ID（`user_educations.is_primary=true && status=verified`），若无主教育记录则回退 `users.school_id`
+
 **注意事项**:
 1. ⚠️ Token 存储在 localStorage
 2. ⚠️ Token 默认7天有效
 3. 💡 登录失败3次后增加验证码
+4. 💡 Token 已包含当前学校ID，前端无需单独请求 schoolId，可直接从解码后的 Token 中获取
 
 ---
 
@@ -414,9 +424,9 @@ Authorization: Bearer <JWT Token>
 | createdAt | DateTime | 创建时间 |
 
 **注意事项**:
-1. 💡 按创建时间倒序排列
-2. 💡 isPrimary=true 的记录优先展示
-3. 💡 status字段用于标识学号验证状态
+1. 仅返回 `user_educations` 表中的记录，不再拼接用户表中的初始教育信息。
+2. `isPrimary=true` 的记录固定置顶，其余按 `createdAt` 倒序排列。
+3. `status` 字段用于标识学号验证状态。
 
 ---
 
@@ -438,8 +448,7 @@ Authorization: Bearer <JWT Token>
   "departmentId": 1,
   "studentId": "2021123456",
   "startDate": "2021-09",
-  "endDate": "2025-06",
-  "isPrimary": true
+  "endDate": "2025-06"
 }
 ```
 
@@ -452,7 +461,6 @@ Authorization: Bearer <JWT Token>
 | studentId | String | 是 | 学号 |
 | startDate | String | 否 | 开始时间（格式：YYYY-MM） |
 | endDate | String | 否 | 结束时间（null表示至今） |
-| isPrimary | Boolean | 否 | 是否设为主要教育经历，默认false |
 
 **成功响应**:
 
@@ -472,7 +480,8 @@ Authorization: Bearer <JWT Token>
     "endDate": "2025-06",
     "isPrimary": true,
     "status": "verified",
-    "createdAt": "2025-12-03T14:00:00"
+    "createdAt": "2025-12-03T14:00:00",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   }
 }
 ```
@@ -505,20 +514,21 @@ Authorization: Bearer <JWT Token>
    - 避免重复添加
 
 3. ✅ **主教育经历处理**：
-   - 如果 isPrimary=true，将其他教育经历的 isPrimary 设为 false
-   - 确保每个用户只有一个主要教育经历
+   - 请求参数不再接收 `isPrimary`，后端固定将新增记录设为主教育经历（isPrimary=true）
+   - 添加前会将该用户历史主教育经历的 isPrimary 置为 false，保证仅有一条主教育经历
 
-4. ✅ **更新users表school_id**：
-   - 添加成功后，自动更新users.school_id为新教育经历的school_id
-   - 确保用户当前学校信息是最新的
+4. ✅ **Token 同步**：
+   - 添加成功后会刷新当前登录 Token，载荷中的 `schoolId` 更新为新的主教育经历 `school_id`
+   - 新 Token 通过响应体 `data.token` 返回，前端需用它覆盖本地登录态
 
 **注意事项**:
 1. ⚠️ 学号必须在 students 表中存在且学校/学院信息匹配
 2. ⚠️ 同一用户不能添加重复的学校+学号组合
 3. ⚠️ 只能添加自己的教育经历
-4. ⚠️ 添加成功后会自动更新users.school_id为新学校ID
-5. 💡 添加成功后返回完整的教育经历信息（包括学校和院系名称）
-6. 💡 前端需调用 GET /api/schools 和 GET /api/departments 接口获取下拉选项
+4. ⚠️ 添加成功会刷新登录 Token（`data.token`），前端需立即更新 Authorization，确保后续请求使用最新 schoolId
+5. 💡 新增记录即为当前主教育经历，历史主记录已自动取消
+6. 💡 添加成功后返回完整的教育经历信息（包括学校和院系名称）
+7. 💡 前端需调用 GET /api/schools 和 GET /api/departments 接口获取下拉选项
 
 ---
 
@@ -605,7 +615,7 @@ Authorization: Bearer <JWT Token>
 |------|------|--------|------|
 | categoryId | Long | 无 | 运动分类ID，首页/全部赛事进入时必传（1=足球、2=篮球、3=羽毛球、4=乒乓球、5=健身） |
 | leagueId | Long | null | 联赛ID，可选；`AllMatches` 联赛下拉的 value |
-| schoolId | Long | null | 学校ID，可选；如需按学校隔离联赛/赛事时使用 |
+| schoolId | Long | null | 学校ID（无需传，后端从登录态 Token 获取；缺失会返回未登录/学校缺失错误） |
 | status | String | all | 比赛状态：upcoming / live / finished / all |
 
 **成功响应**:
@@ -660,7 +670,7 @@ Authorization: Bearer <JWT Token>
 2. `status=upcoming` 时前端展示 “VS”，`live/finished` 展示比分，请保证状态准确。
 3. `leagueName` 请务必返回，用于“联赛筛选”下拉；如缺失前端会退化为 `categoryName + "联赛"`。
 4. 若后端支持分页请使用统一分页格式；如果一次性返回数组，前端也已兼容但推荐分页。
-5. `schoolId`、`leagueId` 仅在需要按学校/联赛过滤时传入：首页默认不传，全部赛事页在用户选择联赛时传入。
+5. `schoolId` 由登录态 Token 自动注入，前端不需要也无法切换；`leagueId` 仅在联赛筛选时传入。
 6. 如后续提供赛季/年份筛选，可扩展 `GET /api/matches/season-years?categoryId=` 供下拉使用（当前页面未开启该筛选）。
 ---
 
@@ -677,7 +687,7 @@ Authorization: Bearer <JWT Token>
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | categoryId | Long | 是 | 运动分类ID（返回该分类下的联赛列表） |
-| schoolId | Long | 否 | 学校ID（可选，若联赛按学校维度拆分则提供） |
+| schoolId | Long | 否 | 学校ID（无需传，后端从登录态 Token 获取；仅用于自动匹配当前用户学校） |
 
 **成功响应示例**:
 
@@ -694,7 +704,8 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. 前端会将 `id` 作为 `leagueId` 传入 `/api/matches` 查询参数
 2. 建议返回状态字段（如 active/archived）便于前端隐藏已归档联赛
-3. 若暂不提供该接口，前端会 fallback 以当前分类下的比赛列表中 `league` 字段去重生成选项
+3. 后端已按登录态自动限定学校，无需传 schoolId；跨校访问需更换登录态
+4. 若暂不提供该接口，前端会 fallback 以当前分类下的比赛列表中 `league` 字段去重生成选项
 
 ---
 
@@ -856,6 +867,7 @@ Authorization: Bearer <JWT Token>
 **注意事项**:
 1. 💡 leagueId 和 categoryId 均为必填，默认使用联赛下拉第一项；year 仅用于历史数据
 2. 💡 每年的球员统计按联赛区分
+3. 💡 数据按登录态的 schoolId 过滤，无需传 schoolId，跨校需更换登录态
 
 ---
 
@@ -890,8 +902,6 @@ Authorization: Bearer <JWT Token>
         "userId": 2,
         "userName": "李四",
         "userAvatar": "https://example.com/avatar.jpg",
-        "schoolId": 1,
-        "schoolName": "清华大学",
         "categoryCode": "football",
         "content": "今天的比赛太精彩了！",
         "images": ["https://example.com/post1.jpg"],
@@ -906,14 +916,15 @@ Authorization: Bearer <JWT Token>
 ```
 
 **业务逻辑**:
-1. 后端自动从当前登录用户的 `users.school_id` 获取学校ID
-2. 查询条件强制添加 `WHERE posts.school_id = 当前用户的school_id`
+1. 后端优先从登录态 Token 的 `schoolId` 获取学校ID，缺失时回落查询 `users.school_id`
+2. 查询条件强制添加 `WHERE posts.school_id = 当前用户的 schoolId（来自 Token/用户表）`
 3. 用户只能看到当前就读学校的帖子，切换学校后无法看到旧学校的帖子
 
 **注意事项**:
 1. ⚠️ 如果用户已毕业（users.school_id 为 NULL），返回空列表
-2. 💡 前端无需传递 schoolId 参数，后端自动过滤
+2. 💡 前端无需传递 schoolId 参数，后端自动过滤（从 Token/用户表读取）
 3. 💡 移动端应用不使用分页，后端返回所有帖子
+4. 💡 响应不再返回学校字段（schoolId、schoolName），仅用于后端过滤
 
 ---
 
@@ -988,8 +999,8 @@ Authorization: Bearer <JWT Token>
 ```
 
 **业务逻辑**:
-1. 后端从当前登录用户的 `users.school_id` 自动获取学校ID
-2. 创建帖子时，`posts.school_id` 字段自动设置为用户的当前学校ID
+1. 后端优先从登录态 Token 的 `schoolId` 自动获取学校ID，缺失时回落查询 `users.school_id`
+2. 创建帖子时，`posts.school_id` 字段自动设置为上述学校ID
 3. 用户无需（也无法）传递 schoolId 参数
 
 **注意事项**:

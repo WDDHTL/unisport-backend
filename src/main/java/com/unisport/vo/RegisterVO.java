@@ -44,18 +44,6 @@ public class RegisterVO implements Serializable {
     private String nickname;
 
     /**
-     * 学校名称
-     */
-    @Schema(description = "学校名称", example = "清华大学")
-    private String school;
-
-    /**
-     * 学院名称
-     */
-    @Schema(description = "学院名称", example = "计算机系")
-    private String department;
-
-    /**
      * 学号
      */
     @Schema(description = "学号", example = "2024001001")

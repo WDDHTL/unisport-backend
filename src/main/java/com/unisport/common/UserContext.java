@@ -2,17 +2,29 @@ package com.unisport.common;
 
 public class UserContext {
 
-    private static final ThreadLocal<Long> USER_ID_HOLDER = new ThreadLocal<>();
+    public record UserSession(Long userId, Long schoolId) {}
 
-    public static void setUserId(Long userId) {
-        USER_ID_HOLDER.set(userId);
+    private static final ThreadLocal<UserSession> USER_HOLDER = new ThreadLocal<>();
+
+    public static void setCurrentUser(Long userId, Long schoolId) {
+        USER_HOLDER.set(new UserSession(userId, schoolId));
+    }
+
+    public static UserSession getCurrentUser() {
+        return USER_HOLDER.get();
     }
 
     public static Long getUserId() {
-        return USER_ID_HOLDER.get();
+        UserSession session = USER_HOLDER.get();
+        return session != null ? session.userId() : null;
+    }
+
+    public static Long getSchoolId() {
+        UserSession session = USER_HOLDER.get();
+        return session != null ? session.schoolId() : null;
     }
 
     public static void clear() {
-        USER_ID_HOLDER.remove();
+        USER_HOLDER.remove();
     }
 }

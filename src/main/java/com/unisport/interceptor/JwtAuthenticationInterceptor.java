@@ -43,13 +43,15 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         String token = authHeader.substring(7);
 
         try {
-            Long userId = JwtUtil.getUserIdFromToken(token, jwtProperties.getSecret());
+            String secret = jwtProperties.getSecret();
+            Long userId = JwtUtil.getUserIdFromToken(token, secret);
+            Long schoolId = JwtUtil.getSchoolIdFromToken(token, secret);
             if (userId == null) {
                 log.warn("Token中未包含用户ID，请求路径：{}", requestUri);
                 throw new BusinessException(40101, "登录状态已失效，请重新登录");
             }
 
-            UserContext.setUserId(userId);
+            UserContext.setCurrentUser(userId, schoolId);
             return true;
         } catch (RuntimeException e) {
             log.warn("Token解析或校验失败，请求路径：{}，原因：{}", requestUri, e.getMessage());
@@ -66,6 +68,18 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
         // 鉴权白名单（无需登录）
         if (uri.startsWith("/auth/login") || uri.startsWith("/auth/register")) {
             return true;
+        }
+        // 学校列表、学号列表、学号校验接口对未登录用户开放
+        if ("GET".equalsIgnoreCase(method)) {
+            if ("/schools".equals(uri)) {
+                return true;
+            }
+            if ("/departments".equals(uri)) {
+                return true;
+            }
+            if ("/students".equals(uri) || "/students/validate".equals(uri)) {
+                return true;
+            }
         }
         // Swagger 文档
         if (uri.startsWith("/swagger-ui") || uri.startsWith("/v3/api-docs") || uri.startsWith("/doc.html")) {

@@ -52,4 +52,7 @@ public class EducationVO implements Serializable {
 
     @Schema(description = "创建时间", example = "2025-12-01T10:00:00")
     private LocalDateTime createdAt;
+
+    @Schema(description = "最新登录token，schoolId已更新", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+    private String token;
 }

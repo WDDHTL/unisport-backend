@@ -26,10 +26,6 @@ public class PostVO implements Serializable {
     //2
     private String userAvatar;
 
-    private Long schoolId;
-    //3
-    private String schoolName;
-
     private Integer categoryId;
 
     private String content;

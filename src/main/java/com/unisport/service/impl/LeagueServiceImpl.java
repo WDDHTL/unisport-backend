@@ -46,8 +46,15 @@ public class LeagueServiceImpl implements LeagueService {
 
         // 获取用户学校信息
         Long userId = UserContext.getUserId();
-        User user = userMapper.selectById(userId);
-        schoolId = user.getSchoolId();
+        Long currentSchoolId = UserContext.getSchoolId();
+        if (currentSchoolId == null) {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new BusinessException(40401, "用户不存在");
+            }
+            currentSchoolId = user.getSchoolId();
+        }
+        schoolId = currentSchoolId;
 
         // 构造查询条件
         LambdaQueryWrapper<League> queryWrapper = new LambdaQueryWrapper<>();

@@ -1,13 +1,18 @@
 package com.unisport.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户实体类
+ * User entity mapped to the users table.
  */
 @Data
 @TableName("users")
@@ -16,78 +21,60 @@ public class User implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * Primary education school id (derived from user_educations, not persisted).
      */
-    @TableId(value = "id", type = IdType.AUTO)
-    private Long id;
-
+    @TableField(exist = false)
     private Long schoolId;
 
     /**
-     * 账号（学号/手机号）
+     * Primary education school name (derived, not persisted).
      */
-    private String account;
-
-    /**
-     * 密码（加密存储）
-     */
-    private String password;
-
-    /**
-     * 昵称
-     */
-    private String nickname;
-
-    /**
-     * 头像URL
-     */
-    private String avatar;
-
-    /**
-     * 学校名称
-     */
+    @TableField(exist = false)
     private String school;
 
     /**
-     * 院系
+     * Primary education department name (derived, not persisted).
      */
+    @TableField(exist = false)
     private String department;
 
-    /**
-     * 学号
-     */
+    /** User ID */
+    @TableId(value = "id", type = IdType.AUTO)
+    private Long id;
+
+    /** Account (student id or phone) */
+    private String account;
+
+    /** Password (encrypted) */
+    private String password;
+
+    /** Nickname */
+    private String nickname;
+
+    /** Avatar URL */
+    private String avatar;
+
+    /** Student id */
     private String studentId;
 
-    /**
-     * 个人简介
-     */
+    /** Personal bio */
     private String bio;
 
-    /**
-     * 性别：1-男，0-女
-     */
+    /** Gender: 1-male, 0-female */
     private Integer gender;
 
-    /**
-     * 账号状态：1-正常, 0-禁用
-     */
+    /** Account status: 1-active, 0-banned */
     private Integer status;
 
-    /**
-     * 创建时间
-     */
+    /** Created time */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    /**
-     * 更新时间
-     */
+    /** Updated time */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    /**
-     * 逻辑删除：0-未删除, 1-已删除
-     */
+    /** Logical delete flag */
     @TableLogic
     private Integer deleted;
 }

@@ -2,6 +2,7 @@ package com.unisport.controller;
 
 import com.unisport.common.PageResult;
 import com.unisport.common.Result;
+import com.unisport.dto.AddEducationDTO;
 import com.unisport.dto.UpdateUserDTO;
 import com.unisport.service.EducationService;
 import com.unisport.service.UserService;
@@ -87,5 +88,13 @@ public class UserController {
         log.info("接到获取用户教育经历列表请求，userId={}", userId);
         List<EducationVO> educations = educationService.listUserEducations(userId);
         return Result.success(educations);
+    }
+
+    @PostMapping("/educations")
+    @Operation(summary = "添加教育经历", description = "需登录，学号/学校/学院信息验证通过后新增教育经历")
+    public Result<EducationVO> addEducation(@Valid @RequestBody AddEducationDTO addEducationDTO) {
+        log.info("接到添加教育经历请求");
+        EducationVO education = educationService.addEducation(addEducationDTO);
+        return Result.success("添加成功", education);
     }
 }

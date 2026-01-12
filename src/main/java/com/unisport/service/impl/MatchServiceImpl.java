@@ -43,9 +43,19 @@ public class MatchServiceImpl implements MatchService {
 
         // 获取用户信息
         Long userId = UserContext.getUserId();
-        User user = userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getId, userId));
+        Long schoolId = UserContext.getSchoolId();
+        if (schoolId == null) {
+            User user = userMapper.selectById(userId);
+            if (user == null) {
+                throw new BusinessException(40401, "用户不存在");
+            }
+            schoolId = user.getSchoolId();
+        }
+        if (schoolId == null) {
+            throw new BusinessException(40004, "学校ID不能为空");
+        }
         // TODO long->int
-        queryDTO.setSchoolId(user.getSchoolId().intValue());
+        queryDTO.setSchoolId(schoolId.intValue());
 
         // 构建查询条件
         LambdaQueryWrapper<Match> queryWrapper = new LambdaQueryWrapper<>();
@@ -55,11 +65,11 @@ public class MatchServiceImpl implements MatchService {
             queryWrapper.eq(Match::getLeagueId, queryDTO.getLeagueId());
         }
         if (queryDTO.getCategoryId() == null){
-            new BusinessException("获取比赛列表分类ID不能为空");
+            throw new BusinessException("获取比赛列表分类ID不能为空");
         }
         queryWrapper.eq(Match::getCategoryId, queryDTO.getCategoryId());
         if (queryDTO.getSchoolId() == null){
-            new BusinessException("获取比赛列表学校ID不能为空");
+            throw new BusinessException("获取比赛列表学校ID不能为空");
         }
         queryWrapper.eq(Match::getSchoolId, queryDTO.getSchoolId());
 
