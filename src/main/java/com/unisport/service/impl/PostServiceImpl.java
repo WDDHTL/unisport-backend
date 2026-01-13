@@ -2,29 +2,31 @@ package com.unisport.service.impl;
 
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.Enum.NotifyType;
+import com.unisport.Enum.RelatedType;
+import com.unisport.WebSocket.WebSocketServer;
 import com.unisport.common.BusinessException;
+import com.unisport.common.LikePostResult;
 import com.unisport.common.UserContext;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
-import com.unisport.entity.Category;
-import com.unisport.entity.Match;
-import com.unisport.entity.Post;
-import com.unisport.entity.User;
-import com.unisport.mapper.CategoryMapper;
-import com.unisport.mapper.PostMapper;
-import com.unisport.mapper.UserMapper;
+import com.unisport.entity.*;
+import com.unisport.mapper.*;
 import com.unisport.service.PostService;
 import com.unisport.vo.MatchVO;
 import com.unisport.vo.PostVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +44,9 @@ public class PostServiceImpl implements PostService {
     private final PostMapper postMapper;
     private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
+    private final PostLikesMapper postLikesMapper;
+    private final NotificationMapper notificationMapper;
+    private final WebSocketServer webSocketServer;
 
     /**
      * 发布帖子
@@ -150,6 +155,100 @@ public class PostServiceImpl implements PostService {
 
         log.info("查询到 {} 条帖子数据", voList.size());
         return voList;
+    }
+
+    /**
+     * 点赞帖子
+     *
+     * @param id 帖子ID
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void post_Likes(Long id) {
+        // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+
+        // 获取被通知者id
+        Long recipientId = post.getUserId();
+        // 获取当前用户id
+        Long userId = UserContext.getUserId();
+        User user = userMapper.selectById(userId);
+
+        boolean alreadyLiked = false;
+
+        // 2) 幂等关键：尝试插入点赞记录
+        //    - 首次点赞：insert 成功
+        //    - 重复点赞：唯一键冲突 -> 抛 DuplicateKeyException（吞掉当作 alreadyLiked）
+        try {
+            PostLikes like = new PostLikes();
+            like.setPostId(id);
+            like.setUserId(userId);
+            like.setCreatedAt(LocalDateTime.now());
+            postLikesMapper.insert(like);
+        } catch (DuplicateKeyException e) {
+            alreadyLiked = true;
+        }
+
+        // 3) 只有首次点赞才做后续动作（计数+通知）
+        if (!alreadyLiked){
+            // 3.1 原子 +1（并发安全）
+            postMapper.update(
+                    null,
+                    new UpdateWrapper<Post>()
+                            .eq("id", id)
+                            .setSql("likes_count = likes_count + 1")
+            );
+            // 5) 插入通知：自己给自己点赞一般不通知
+            if (!userId.equals(recipientId)){
+                String content = buildLikePostPreview(post.getContent());
+                Notification n = new Notification();
+                n.setUserId(recipientId);            // 收件人
+                n.setSenderId(userId);              // 触发者
+                n.setType(NotifyType.LIKE);
+                n.setRelatedType(RelatedType.POST);            // 关联对象类型
+                n.setRelatedId(id);              // 关联对象 id
+                n.setContent(content); // 展示文案（列表第二行）
+                n.setIsRead(0);                      // 未读
+                n.setCreatedAt(LocalDateTime.now());
+
+                notificationMapper.insert(n);
+
+                Long count = notificationMapper.selectCount(
+                        new LambdaQueryWrapper<Notification>()
+                                .eq(Notification::getUserId, recipientId)
+                                .eq(Notification::getIsRead, 0)   // 或 eq(Notification::getRead, false)
+                        // .eq(Notification::getDeleted, 0) // 如果你不是 MP @TableLogic，这里要手动加
+                );
+
+
+                HashMap map = new HashMap();
+                map.put("type",NotifyType.LIKE);
+                map.put("userName", user.getNickname());
+                map.put("contnt",content);
+                map.put("count", count);
+
+                String jsonStr = JSONUtil.toJsonStr(map);
+
+                webSocketServer.trySendToUser(recipientId, jsonStr);
+
+            }
+        }
+
+    }
+
+    /*
+    * 构造提示文案
+    * */
+    private String buildLikePostPreview(String postContent) {
+        String text = (postContent == null) ? "" : postContent.trim();
+        int maxLen = 20;
+        if (text.length() > maxLen) {
+            text = text.substring(0, maxLen) + "...";
+        }
+        return "赞了你的帖子 \"" + text + "\"";
     }
 
     /**

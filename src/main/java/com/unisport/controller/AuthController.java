@@ -8,9 +8,12 @@ import com.unisport.vo.LoginVO;
 import com.unisport.vo.RegisterVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseCookie;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -69,11 +72,29 @@ public class AuthController {
      */
     @PostMapping("/login")
     @Operation(summary = "用户登录", description = "用户登录获取JWT Token")
-    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO) {
+    public Result<LoginVO> login(@Valid @RequestBody LoginDTO loginDTO, HttpServletRequest request, HttpServletResponse response) {
         log.info("收到用户登录请求，账号：{}", loginDTO.getAccount());
         
         // 调用服务层处理登录逻辑
         LoginVO loginVO = authService.login(loginDTO);
+
+        if (loginVO != null) {
+            String token = loginVO.getToken();
+            boolean secureCookie = request.isSecure();
+            String forwardedProto = request.getHeader("X-Forwarded-Proto");
+            if (forwardedProto != null) {
+                secureCookie = forwardedProto.toLowerCase().contains("https");
+            }
+
+            ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", token)
+                    .httpOnly(true)
+                    .secure(secureCookie)          // 本地 http 下不要丢 Cookie，生产请走 https/wss
+                    .path("/")
+                    .sameSite("Lax")       // 跨站点才用 None
+                    .build();
+
+            response.addHeader("Set-Cookie", cookie.toString());
+        }
         
         log.info("用户登录成功，用户ID：{}，账号：{}", loginVO.getUser().getId(), loginDTO.getAccount());
         return Result.success("登录成功", loginVO);

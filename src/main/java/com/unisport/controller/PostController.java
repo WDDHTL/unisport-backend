@@ -1,6 +1,7 @@
 package com.unisport.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.common.LikePostResult;
 import com.unisport.common.Result;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
@@ -75,5 +76,11 @@ public class PostController {
         List<PostVO> PostVOs = postService.getPostList(postQueryDTO);
         return Result.success(PostVOs);
 
+    }
+
+    @PostMapping("/{id}/like")
+    public Result post_Likes(@PathVariable Long id){
+        postService.post_Likes(id);
+        return Result.success();
     }
 }

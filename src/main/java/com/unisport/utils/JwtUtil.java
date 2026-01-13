@@ -1,4 +1,4 @@
-package com.unisport.util;
+package com.unisport.utils;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

@@ -3,7 +3,7 @@ package com.unisport.interceptor;
 import com.unisport.common.BusinessException;
 import com.unisport.common.UserContext;
 import com.unisport.config.JwtProperties;
-import com.unisport.util.JwtUtil;
+import com.unisport.utils.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

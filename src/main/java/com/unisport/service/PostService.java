@@ -1,6 +1,7 @@
 package com.unisport.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.unisport.common.LikePostResult;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
@@ -25,4 +26,6 @@ public interface PostService {
     Post createPost(CreatePostDTO createPostDTO);
 
     List<PostVO> getPostList(PostQueryDTO postQueryDTO);
+
+    void post_Likes(Long id);
 }

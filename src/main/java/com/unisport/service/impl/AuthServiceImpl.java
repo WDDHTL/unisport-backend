@@ -13,7 +13,7 @@ import com.unisport.mapper.StudentMapper;
 import com.unisport.mapper.UserEducationMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.AuthService;
-import com.unisport.util.JwtUtil;
+import com.unisport.utils.JwtUtil;
 import com.unisport.vo.LoginVO;
 import com.unisport.vo.RegisterVO;
 import lombok.RequiredArgsConstructor;
@@ -167,6 +167,8 @@ public class AuthServiceImpl implements AuthService {
             String token = generateToken(user, primarySchoolId);
 
             LoginVO loginVO = buildLoginVO(token, user);
+
+            
 
             // ????????ID???
             log.info("用户登录成功，用户ID：{}，账号：{}", user.getId(), user.getAccount());

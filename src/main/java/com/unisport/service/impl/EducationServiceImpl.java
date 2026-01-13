@@ -16,7 +16,7 @@ import com.unisport.mapper.UserEducationMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.mapper.StudentMapper;
 import com.unisport.service.EducationService;
-import com.unisport.util.JwtUtil;
+import com.unisport.utils.JwtUtil;
 import com.unisport.vo.EducationVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
