@@ -203,7 +203,7 @@ public class PostServiceImpl implements PostService {
             );
             // 5) 插入通知：自己给自己点赞一般不通知
             if (!userId.equals(recipientId)){
-                String content = buildLikePostPreview(post.getContent());
+                String content = buildLikePostPreview(user.getNickname(),post.getContent());
                 Notification n = new Notification();
                 n.setUserId(recipientId);            // 收件人
                 n.setSenderId(userId);              // 触发者
@@ -226,8 +226,8 @@ public class PostServiceImpl implements PostService {
 
                 HashMap map = new HashMap();
                 map.put("type",NotifyType.LIKE);
-                map.put("userName", user.getNickname());
-                map.put("contnt",content);
+                map.put("id",id);
+                map.put("content",content);
                 map.put("count", count);
 
                 String jsonStr = JSONUtil.toJsonStr(map);
@@ -242,13 +242,13 @@ public class PostServiceImpl implements PostService {
     /*
     * 构造提示文案
     * */
-    private String buildLikePostPreview(String postContent) {
+    private String buildLikePostPreview(String nickname, String postContent) {
         String text = (postContent == null) ? "" : postContent.trim();
         int maxLen = 20;
         if (text.length() > maxLen) {
             text = text.substring(0, maxLen) + "...";
         }
-        return "赞了你的帖子 \"" + text + "\"";
+        return nickname + "赞了你的帖子 \"" + text + "\"";
     }
 
     /**
