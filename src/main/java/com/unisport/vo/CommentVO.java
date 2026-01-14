@@ -1,11 +1,12 @@
 package com.unisport.vo;
 
-import com.unisport.entity.Comment;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * <p>
@@ -13,34 +14,19 @@ import java.util.List;
  * </p>
  *
  * @author 86139$
- * @since 2025/12/11$
+ * @since 2026/1/14$
  */
 @Data
-public class PostVO implements Serializable {
-
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class CommentVO implements Serializable {
     private static final long serialVersionUID = 1L;
-
     private Long id;
-
-    private Long userId;
-    //1
     private String userName;
-    //2
     private String userAvatar;
-
-    private Integer categoryId;
-
+    private Long parentId;
     private String content;
-
-    private String images;
-
     private Integer likesCount;
-
-    private Integer commentsCount;
-    // 4
-    private boolean isLiked;
-
     private LocalDateTime createdAt;
-
-    private List<CommentVO> comments;
 }

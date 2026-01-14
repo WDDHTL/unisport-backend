@@ -15,7 +15,9 @@ import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.*;
 import com.unisport.mapper.*;
 import com.unisport.service.PostService;
+import com.unisport.vo.CommentVO;
 import com.unisport.vo.MatchVO;
+import com.unisport.vo.NewPostVO;
 import com.unisport.vo.PostVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -47,6 +50,7 @@ public class PostServiceImpl implements PostService {
     private final PostLikesMapper postLikesMapper;
     private final NotificationMapper notificationMapper;
     private final WebSocketServer webSocketServer;
+    private final CommentMapper commentMapper;
 
     /**
      * 发布帖子
@@ -192,9 +196,9 @@ public class PostServiceImpl implements PostService {
             alreadyLiked = true;
         }
 
-        // 3) 只有首次点赞才做后续动作（计数+通知）
+        // 3) 只有当前没有点赞该帖子才做后续动作（通知）
         if (!alreadyLiked){
-            // 3.1 原子 +1（并发安全）
+            // 增加帖子赞数次数
             postMapper.update(
                     null,
                     new UpdateWrapper<Post>()
@@ -223,7 +227,7 @@ public class PostServiceImpl implements PostService {
                         // .eq(Notification::getDeleted, 0) // 如果你不是 MP @TableLogic，这里要手动加
                 );
 
-
+                // 基于ws连接推送点赞信息
                 HashMap map = new HashMap();
                 map.put("type",NotifyType.LIKE);
                 map.put("id",id);
@@ -237,6 +241,72 @@ public class PostServiceImpl implements PostService {
             }
         }
 
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void post_UnLikes(Long id) {
+        // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+        if(post.getLikesCount() > 0){
+            postMapper.update(
+                    null,
+                    new UpdateWrapper<Post>()
+                            .eq("id", id)
+                            .setSql("likes_count = likes_count - 1")
+            );
+            postLikesMapper.deleteByPostIdAndUserId(id, UserContext.getUserId());
+        }
+    }
+
+    /**
+     * 获取帖子详情
+     * @param id
+     * @return
+     */
+    @Override
+    public PostVO getDetailById(Long id) {
+        // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+        PostLikes postLikes = postLikesMapper.selectOne(
+                new LambdaQueryWrapper<PostLikes>()
+                        .eq(PostLikes::getUserId, UserContext.getUserId())
+                        .eq(PostLikes::getPostId, id)
+        );
+        PostVO vo = new PostVO();
+        BeanUtils.copyProperties(post, vo);
+        if (postLikes != null){
+            vo.setLiked(true);
+        }
+        // 帖子作者
+        User postOwner = userMapper.selectById(post.getUserId());
+        vo.setUserName(postOwner.getNickname());
+        vo.setUserAvatar(postOwner.getAvatar());
+
+        List<Comment> comments = commentMapper.selectList(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getPostId, id)
+                        .eq(Comment::getDeleted, 0)
+        );
+        List<CommentVO> commentVOS = new ArrayList<>();
+        comments.forEach(comment -> {
+            CommentVO commentVO = new CommentVO();
+            BeanUtils.copyProperties(comment, commentVO);
+            User commentUser = userMapper.selectById(comment.getUserId());
+            commentVO.setUserName(commentUser.getNickname());
+            commentVO.setUserAvatar(commentUser.getAvatar());
+            commentVOS.add(commentVO);
+        });
+        vo.setComments(commentVOS);
+
+
+        return vo;
     }
 
     /*

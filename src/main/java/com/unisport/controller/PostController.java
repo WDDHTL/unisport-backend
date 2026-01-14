@@ -1,14 +1,12 @@
 package com.unisport.controller;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.unisport.common.LikePostResult;
 import com.unisport.common.Result;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
 import com.unisport.service.PostService;
-import com.unisport.vo.MatchVO;
 import com.unisport.vo.PostVO;
+import com.unisport.vo.NewPostVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -79,8 +77,24 @@ public class PostController {
     }
 
     @PostMapping("/{id}/like")
+    @Operation(summary = "点赞帖子", description = "用户点赞帖子")
     public Result post_Likes(@PathVariable Long id){
         postService.post_Likes(id);
         return Result.success();
+    }
+
+    @Operation(summary = "取消点赞帖子", description = "用户取消点赞帖子")
+    @DeleteMapping("/{id}/like")
+    public Result post_UnLikes(@PathVariable Long id){
+        postService.post_UnLikes(id);
+        return Result.success();
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "查询帖子详情", description = "获取帖子详情")
+    public Result<PostVO> getPost(@PathVariable Long id) {
+        log.info("接收查询帖子详情请求，帖子ID：{}", id);
+        PostVO postVO = postService.getDetailById(id);
+        return Result.success(postVO);
     }
 }

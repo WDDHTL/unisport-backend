@@ -918,7 +918,7 @@
 | parent_id | BIGINT | NULL | 父评论ID（回复功能） |
 | content | TEXT | NOT NULL | 评论内容 |
 | likes_count | INT | DEFAULT 0 | 点赞数 |
-| status | TINYINT | DEFAULT 1 | 状态（1:正常 0:删除） |
+| deleted | TINYINT | DEFAULT 0 | 状态（0:正常 1:删除） |
 | created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 
 **索引：**

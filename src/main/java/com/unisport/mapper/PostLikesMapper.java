@@ -3,6 +3,7 @@ package com.unisport.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.unisport.entity.Category;
 import com.unisport.entity.PostLikes;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
@@ -15,4 +16,7 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface PostLikesMapper extends BaseMapper<PostLikes> {
+    
+    @Delete("delete from post_likes where post_id = #{id} and user_id = #{userId};")
+    void deleteByPostIdAndUserId(Long id, Long userId);
 }

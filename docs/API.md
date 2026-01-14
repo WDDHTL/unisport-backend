@@ -944,11 +944,21 @@ Authorization: Bearer <JWT Token>
   "code": 200,
   "data": {
     "id": 1,
+    "userId": 1,
+    "userName": "伟大的灰太狼",
+    "userAvatar": "https://unisport-upload.oss-cn-shenzhen.aliyuncs.com/9be23ff8-40fd-4c59-8617-3434882a32b3.jpg",
     "content": "今天的比赛太精彩了！",
+    "images": ["https://unisport-upload.oss-cn-shenzhen.aliyuncs.com/44c8cd45-0989-42a8-afc8-d58e6b33252d.jpg"],
+    "likesCount": 10,
+    "commentsCount": 11,
+    "Liked": true,
+    "createdAt": "2025-12-01T10:35:00",
     "comments": [
       {
         "id": 1,
         "userName": "王五",
+        "userAvatar": "https://unisport-upload.oss-cn-shenzhen.aliyuncs.com/9be23ff8-40fd-4c59-8617-3434882a32b3.jpg",
+        "parentId": 0,
         "content": "说得对！",
         "likesCount": 12,
         "createdAt": "2025-12-01T10:35:00"
@@ -957,6 +967,12 @@ Authorization: Bearer <JWT Token>
   }
 }
 ```
+
+**字段说明**:
+
+- `Liked`：boolean，true 表示当前用户已点赞，false 表示未点赞。
+- `comments`:  评论数组。
+- `parentId`:  Long,  表示父评论id，0 表示是直接评论帖子，非0表示前端需要将该评论挂在到父评论下，实现一种回复评论效果。
 
 ---
 

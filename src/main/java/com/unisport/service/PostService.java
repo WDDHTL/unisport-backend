@@ -5,6 +5,7 @@ import com.unisport.common.LikePostResult;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
+import com.unisport.vo.NewPostVO;
 import com.unisport.vo.PostVO;
 
 import java.util.List;
@@ -28,4 +29,8 @@ public interface PostService {
     List<PostVO> getPostList(PostQueryDTO postQueryDTO);
 
     void post_Likes(Long id);
+
+    void post_UnLikes(Long id);
+
+    PostVO getDetailById(Long id);
 }
