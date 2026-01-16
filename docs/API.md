@@ -18,6 +18,7 @@
 - [7. 系统功能模块](#7-系统功能模块)
 - [8. 错误码说明](#8-错误码说明)
 - [9. 前端页面与接口对应关系](#9-前端页面与接口对应关系)
+- [10. 实时连接模块](#10-实时连接模块)
 
 ---
 
@@ -1075,6 +1076,92 @@ Authorization: Bearer <JWT Token>
 
 ---
 
+### 5.8 回复评论
+
+**接口**: `POST /api/comments/{id}/reply`
+
+**使用场景**:
+- 在帖子详情中对指定评论进行楼中楼回复
+- 触发被回复用户的消息通知
+
+**前端页面**: `PostDetail.tsx`
+
+**请求参数**:
+
+```json
+{
+  "content": "同意你的观点！"
+}
+```
+
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "回复成功",
+  "data": {
+    "id": 22,
+    "postId": 5,
+    "parentId": 8,
+    "userId": 3,
+    "userName": "张三",
+    "userAvatar": "https://example.com/avatar.jpg",
+    "content": "同意你的观点！",
+    "likesCount": 0,
+    "createdAt": "2026-01-16T12:00:00"
+  }
+}
+```
+
+**注意事项**:
+1. ⚠️ 路径中的 `{id}` 视为父评论ID，后端需校验父评论存在且归属同一帖子，否则返回 40401。
+2. ⚠️ 回复内容长度 1-1000 字符，需登录才能操作。
+3. 💡 `parentId` 固定为目标评论ID，前端无需再传；返回结果沿用帖子详情中的评论字段结构，方便直接插入到原评论子列表。
+4. 💡 回复成功后发送 comment 类型通知给父评论作者，并透传帖子ID以便客户端跳转。
+
+---
+
+### 5.9 点赞评论
+
+**接口**: `POST /api/comments/{id}/like`
+
+**使用场景**:
+- 在帖子详情页为评论点赞或取消点赞
+
+**前端页面**: `PostDetail.tsx`
+
+**请求参数**:
+
+```json
+{
+  "action": "like"
+}
+```
+
+`action` 取值：`like` 点赞、`unlike` 取消点赞。
+
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": {
+    "liked": true,
+    "likesCount": 13
+  }
+}
+```
+
+**注意事项**:
+1. ⚠️ 幂等处理：重复点赞/取消不报错，仅返回当前状态。
+2. ⚠️ 需校验评论所属帖子与当前登录用户学校一致，否则拒绝。
+3. 💡 点赞成功发送 like 类型通知给评论作者，避免给自己点赞时发送通知。
+4. 💡 后端根据 `action` 决定增减点赞数，返回最新 `likesCount` 与当前 `liked` 状态，便于前端同步。
+
+---
+
 ## 6. 消息通知模块
 
 ### 6.1 获取通知列表
@@ -1396,6 +1483,8 @@ file: [二进制文件]（必填，仅支持图片）
 | PostDetail.tsx | GET /api/posts/{id} | 获取帖子详情 |
 | PostDetail.tsx | POST /api/posts/{id}/like | 点赞帖子 |
 | PostDetail.tsx | POST /api/posts/{id}/comments | 评论帖子 |
+| PostDetail.tsx | POST /api/comments/{id}/reply | 回复评论 |
+| PostDetail.tsx | POST /api/comments/{id}/like | 点赞/取消点赞评论 |
 
 ---
 
@@ -1416,6 +1505,19 @@ file: [二进制文件]（必填，仅支持图片）
 | FollowingList.tsx | GET /api/users/{id}/following | 获取关注列表 |
 | UserProfile.tsx | GET /api/users/{id} | 获取用户信息 |
 | UserProfile.tsx | POST /api/users/{id}/follow | 关注用户 |
+
+---
+
+## 10. 实时连接模块
+
+### 10.1 WebSocket 连接
+**接口**: `WS /api/ws?token=...`
+
+- 用途：已登录用户建立 WebSocket 长连接，接收后端实时推送（通知/消息等）  
+- 协议：WebSocket，地址 `ws://localhost:8080/api/ws`  
+- 鉴权：token 通过查询参数传递（前端从 localStorage 或 cookie 读取）；未登录不发起连接  
+- 断线重连：默认 3s 重连，需本地存在 token + user 才会再次尝试  
+- 前端封装：`services/websocketService.ts` 暴露 `connect(token?)`、`disconnect()`、`addMessageListener(fn)`、`removeMessageListener(fn)`；`onmessage` 收到的 payload 为字符串，业务侧自行解析（通常为 JSON 文本）
 
 ---
 

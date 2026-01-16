@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 public class CommentVO implements Serializable {
     private static final long serialVersionUID = 1L;
     private Long id;
+    private Long userId;
     private String userName;
     private String userAvatar;
     private Long parentId;

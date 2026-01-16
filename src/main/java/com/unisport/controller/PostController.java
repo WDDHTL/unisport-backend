@@ -1,10 +1,12 @@
 package com.unisport.controller;
 
 import com.unisport.common.Result;
+import com.unisport.dto.CommentDTO;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
 import com.unisport.service.PostService;
+import com.unisport.vo.CommentVO;
 import com.unisport.vo.PostVO;
 import com.unisport.vo.NewPostVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -96,5 +98,13 @@ public class PostController {
         log.info("接收查询帖子详情请求，帖子ID：{}", id);
         PostVO postVO = postService.getDetailById(id);
         return Result.success(postVO);
+    }
+
+    @PostMapping("/{id}/comments")
+    @Operation(summary = "发布评论", description = "用户发布评论")
+    public Result createComment(@PathVariable Long id, @Valid @RequestBody CommentDTO commentDTO) {
+        log.info("接收发布评论请求，帖子ID：{}", id);
+        postService.createComment(id, commentDTO);
+        return Result.success();
     }
 }

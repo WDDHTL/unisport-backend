@@ -10,6 +10,7 @@ import com.unisport.WebSocket.WebSocketServer;
 import com.unisport.common.BusinessException;
 import com.unisport.common.LikePostResult;
 import com.unisport.common.UserContext;
+import com.unisport.dto.CommentDTO;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.*;
@@ -230,7 +231,7 @@ public class PostServiceImpl implements PostService {
                 // 基于ws连接推送点赞信息
                 HashMap map = new HashMap();
                 map.put("type",NotifyType.LIKE);
-                map.put("id",id);
+                map.put("postId",id);
                 map.put("content",content);
                 map.put("count", count);
 
@@ -289,16 +290,20 @@ public class PostServiceImpl implements PostService {
         vo.setUserName(postOwner.getNickname());
         vo.setUserAvatar(postOwner.getAvatar());
 
+        // 获取属于该帖子的评论
         List<Comment> comments = commentMapper.selectList(
                 new LambdaQueryWrapper<Comment>()
                         .eq(Comment::getPostId, id)
                         .eq(Comment::getDeleted, 0)
         );
+
+        // comment -> commentVO
         List<CommentVO> commentVOS = new ArrayList<>();
         comments.forEach(comment -> {
             CommentVO commentVO = new CommentVO();
             BeanUtils.copyProperties(comment, commentVO);
             User commentUser = userMapper.selectById(comment.getUserId());
+            commentVO.setUserId(commentUser.getId());
             commentVO.setUserName(commentUser.getNickname());
             commentVO.setUserAvatar(commentUser.getAvatar());
             commentVOS.add(commentVO);
@@ -309,8 +314,72 @@ public class PostServiceImpl implements PostService {
         return vo;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createComment(Long id, CommentDTO commentDTO) {
+        // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+        Long userId = UserContext.getUserId();
+        Comment comment = new Comment();
+        comment.setPostId(id);
+        comment.setUserId(userId);
+        comment.setContent(commentDTO.getContent());
+        commentMapper.insert(comment);
+
+        // 评论+1
+        postMapper.update(
+                null,
+                new UpdateWrapper<Post>()
+                        .eq("id", id)
+                        .setSql("comments_count = comments_count + 1")
+        );
+
+        // 收件人
+        Long recipientId = post.getUserId();
+        // 发件人
+        User user = userMapper.selectById(userId);
+
+        if (!userId.equals(recipientId)){
+            String content = buildCommentPreview(user.getNickname(),comment.getContent());
+            Notification n = new Notification();
+            n.setUserId(recipientId);            // 收件人
+            n.setSenderId(userId);              // 触发者
+            n.setType(NotifyType.COMMENT);
+            n.setRelatedType(RelatedType.POST);            // 关联对象类型
+            n.setRelatedId(id);              // 关联对象 id
+            n.setContent(content); // 展示文案（列表第二行）
+            n.setIsRead(0);                      // 未读
+            n.setCreatedAt(LocalDateTime.now());
+
+            notificationMapper.insert(n);
+
+            Long count = notificationMapper.selectCount(
+                    new LambdaQueryWrapper<Notification>()
+                            .eq(Notification::getUserId, recipientId)
+                            .eq(Notification::getIsRead, 0)   // 或 eq(Notification::getRead, false)
+            );
+
+            // 基于ws连接推送点赞信息
+            HashMap map = new HashMap();
+            map.put("type",NotifyType.COMMENT);
+            map.put("postId",id);
+            map.put("commentId",comment.getId());
+            map.put("content",content);
+            map.put("count", count);
+
+            String jsonStr = JSONUtil.toJsonStr(map);
+
+            webSocketServer.trySendToUser(recipientId, jsonStr);
+
+        }
+
+    }
+
     /*
-    * 构造提示文案
+    * 构造点赞提示文案
     * */
     private String buildLikePostPreview(String nickname, String postContent) {
         String text = (postContent == null) ? "" : postContent.trim();
@@ -319,6 +388,18 @@ public class PostServiceImpl implements PostService {
             text = text.substring(0, maxLen) + "...";
         }
         return nickname + "赞了你的帖子 \"" + text + "\"";
+    }
+
+    /*
+     * 构造点赞提示文案
+     * */
+    private String buildCommentPreview(String nickname, String postContent) {
+        String text = (postContent == null) ? "" : postContent.trim();
+        int maxLen = 20;
+        if (text.length() > maxLen) {
+            text = text.substring(0, maxLen) + "...";
+        }
+        return nickname + "评论了你的帖子 \"" + text + "\"";
     }
 
     /**
