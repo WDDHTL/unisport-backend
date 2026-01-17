@@ -107,4 +107,12 @@ public class PostController {
         postService.createComment(id, commentDTO);
         return Result.success();
     }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除帖子", description = "用户删除帖子")
+    public Result deletePost(@PathVariable Long id) {
+        log.info("接收删除帖子请求，帖子ID：{}", id);
+        postService.deletePost(id);
+        return Result.success();
+    }
 }

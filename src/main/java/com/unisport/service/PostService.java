@@ -36,4 +36,6 @@ public interface PostService {
     PostVO getDetailById(Long id);
 
     void createComment(Long id, CommentDTO commentDTO);
+
+    void deletePost(Long id);
 }

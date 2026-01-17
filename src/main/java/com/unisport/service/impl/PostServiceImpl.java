@@ -378,6 +378,46 @@ public class PostServiceImpl implements PostService {
 
     }
 
+    @Override
+    public void deletePost(Long id) {
+        // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Post post = postMapper.selectById(id);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+        // 校验用户是不是帖子主人
+        Long userId = UserContext.getUserId();
+        if (!userId.equals(post.getUserId())){
+            throw new BusinessException(40004, "无权限删除");
+        }
+        // 执行逻辑删除
+        postMapper.update(
+                null,
+                new UpdateWrapper<Post>()
+                        .eq("id", id)
+                        .set("deleted", 1)
+                        .set("deleted_at", LocalDateTime.now())
+        );
+
+        // 删除关联的评论信息
+        commentMapper.update(
+                null,
+                new UpdateWrapper<Comment>()
+                        .eq("post_id", id)
+                        .set("deleted", 1)
+        );
+
+        // 删除关联的点赞信息
+        postLikesMapper.update(
+                null,
+                new UpdateWrapper<PostLikes>()
+                        .eq("post_id", id)
+                        .set("deleted", 1)
+        );
+
+        // TODO: 后续还要添加删除评论点赞信息
+    }
+
     /*
     * 构造点赞提示文案
     * */

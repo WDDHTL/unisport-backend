@@ -54,7 +54,7 @@ public class MatchServiceImpl implements MatchService {
         if (schoolId == null) {
             throw new BusinessException(40004, "学校ID不能为空");
         }
-        // TODO long->int
+
         queryDTO.setSchoolId(schoolId.intValue());
 
         // 构建查询条件
