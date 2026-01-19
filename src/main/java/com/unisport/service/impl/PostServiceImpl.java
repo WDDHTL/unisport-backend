@@ -269,9 +269,11 @@ public class PostServiceImpl implements PostService {
      * @return
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public PostVO getDetailById(Long id) {
         // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
         Post post = postMapper.selectById(id);
+        log.info("查询帖子评论数量 {}", post.getCommentsCount());
         if (post == null || post.getDeleted() == 1) {
             throw new BusinessException(40401, "帖子不存在");
         }
@@ -431,7 +433,7 @@ public class PostServiceImpl implements PostService {
     }
 
     /*
-     * 构造点赞提示文案
+     * 构造评论提示文案
      * */
     private String buildCommentPreview(String nickname, String postContent) {
         String text = (postContent == null) ? "" : postContent.trim();

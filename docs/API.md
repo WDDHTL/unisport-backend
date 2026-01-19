@@ -957,6 +957,7 @@ Authorization: Bearer <JWT Token>
     "comments": [
       {
         "id": 1,
+        "userId": 7,
         "userName": "王五",
         "userAvatar": "https://unisport-upload.oss-cn-shenzhen.aliyuncs.com/9be23ff8-40fd-4c59-8617-3434882a32b3.jpg",
         "parentId": 0,
