@@ -3,6 +3,7 @@ package com.unisport.controller;
 import com.unisport.common.Result;
 import com.unisport.dto.CommentDTO;
 import com.unisport.service.CommentService;
+import com.unisport.vo.CommentLikesVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -33,5 +34,12 @@ public class CommentController {
         log.info("接收回复评论请求，评论ID：{}", id);
         commentService.replyComment(id, commentDTO);
         return Result.success();
+    }
+
+    @PostMapping("/{id}/like")
+    @Operation(summary = "点赞评论", description = "用户点赞评论")
+    public Result<CommentLikesVO> comment_Likes(@PathVariable Long id){
+        CommentLikesVO commentLikesVO = commentService.comment_Likes(id);
+        return Result.success(commentLikesVO);
     }
 }

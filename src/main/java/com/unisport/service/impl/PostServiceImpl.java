@@ -52,6 +52,7 @@ public class PostServiceImpl implements PostService {
     private final NotificationMapper notificationMapper;
     private final WebSocketServer webSocketServer;
     private final CommentMapper commentMapper;
+    private final CommentLikesMapper commentLikesMapper;
 
     /**
      * 发布帖子
@@ -277,6 +278,8 @@ public class PostServiceImpl implements PostService {
         if (post == null || post.getDeleted() == 1) {
             throw new BusinessException(40401, "帖子不存在");
         }
+
+        // 标记帖子是否已经点赞
         PostLikes postLikes = postLikesMapper.selectOne(
                 new LambdaQueryWrapper<PostLikes>()
                         .eq(PostLikes::getUserId, UserContext.getUserId())
@@ -287,6 +290,7 @@ public class PostServiceImpl implements PostService {
         if (postLikes != null){
             vo.setLiked(true);
         }
+
         // 帖子作者
         User postOwner = userMapper.selectById(post.getUserId());
         vo.setUserName(postOwner.getNickname());
@@ -305,6 +309,16 @@ public class PostServiceImpl implements PostService {
             CommentVO commentVO = new CommentVO();
             BeanUtils.copyProperties(comment, commentVO);
             User commentUser = userMapper.selectById(comment.getUserId());
+            // 标记是否已经点赞评论 默认未点赞
+            commentVO.setLiked(false);
+            CommentLikes commentLikes = commentLikesMapper.selectOne(
+                    new LambdaQueryWrapper<CommentLikes>()
+                            .eq(CommentLikes::getUserId, UserContext.getUserId())
+                            .eq(CommentLikes::getCommentId, comment.getId())
+            );
+            if (commentLikes != null){
+                commentVO.setLiked(true);
+            }
             commentVO.setUserId(commentUser.getId());
             commentVO.setUserName(commentUser.getNickname());
             commentVO.setUserAvatar(commentUser.getAvatar());

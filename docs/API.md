@@ -960,6 +960,7 @@ Authorization: Bearer <JWT Token>
         "userId": 7,
         "userName": "王五",
         "userAvatar": "https://unisport-upload.oss-cn-shenzhen.aliyuncs.com/9be23ff8-40fd-4c59-8617-3434882a32b3.jpg",
+        "isLiked": false,
         "parentId": 0,
         "content": "说得对！",
         "likesCount": 12,
@@ -975,6 +976,7 @@ Authorization: Bearer <JWT Token>
 - `Liked`：boolean，true 表示当前用户已点赞，false 表示未点赞。
 - `comments`:  评论数组。
 - `parentId`:  Long,  表示父评论id，0 表示是直接评论帖子，非0表示前端需要将该评论挂在到父评论下，实现一种回复评论效果。
+- `comments`中`isLiked`: boolean，true 表示当前用户已点赞该评论，false 表示未点赞该评论。
 
 ---
 
@@ -1131,16 +1133,6 @@ Authorization: Bearer <JWT Token>
 - 在帖子详情页为评论点赞或取消点赞
 
 **前端页面**: `PostDetail.tsx`
-
-**请求参数**:
-
-```json
-{
-  "action": "like"
-}
-```
-
-`action` 取值：`like` 点赞、`unlike` 取消点赞。
 
 **成功响应**:
 

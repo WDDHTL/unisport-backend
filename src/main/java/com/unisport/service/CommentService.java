@@ -1,6 +1,7 @@
 package com.unisport.service;
 
 import com.unisport.dto.CommentDTO;
+import com.unisport.vo.CommentLikesVO;
 
 /**
  * <p>
@@ -12,4 +13,6 @@ import com.unisport.dto.CommentDTO;
  */
 public interface CommentService {
     void replyComment(Long id, CommentDTO commentDTO);
+
+    CommentLikesVO comment_Likes(Long id);
 }

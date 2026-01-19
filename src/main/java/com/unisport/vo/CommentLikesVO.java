@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
  * <p>
@@ -14,21 +13,14 @@ import java.time.LocalDateTime;
  * </p>
  *
  * @author 86139$
- * @since 2026/1/14$
+ * @since 2026/1/19$
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class CommentVO implements Serializable {
+public class CommentLikesVO implements Serializable {
     private static final long serialVersionUID = 1L;
-    private Long id;
-    private Long userId;
-    private String userName;
-    private String userAvatar;
-    private boolean isLiked;
-    private Long parentId;
-    private String content;
+    private boolean Liked;
     private Integer likesCount;
-    private LocalDateTime createdAt;
 }
