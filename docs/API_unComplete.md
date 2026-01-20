@@ -14,16 +14,6 @@
 
 **前端页面**: `PostDetail.tsx`
 
-**请求参数**:
-
-```json
-{
-  "action": "like"
-}
-```
-
-`action` 取值：`like` 点赞、`unlike` 取消点赞。
-
 **成功响应**:
 
 ```json

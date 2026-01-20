@@ -15,4 +15,6 @@ public interface CommentService {
     void replyComment(Long id, CommentDTO commentDTO);
 
     CommentLikesVO comment_Likes(Long id);
+
+    CommentLikesVO comment_unLikes(Long id);
 }

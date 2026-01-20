@@ -39,7 +39,17 @@ public class CommentController {
     @PostMapping("/{id}/like")
     @Operation(summary = "点赞评论", description = "用户点赞评论")
     public Result<CommentLikesVO> comment_Likes(@PathVariable Long id){
+        log.info("点赞评论请求，评论ID：{}", id);
         CommentLikesVO commentLikesVO = commentService.comment_Likes(id);
         return Result.success(commentLikesVO);
     }
+
+    @DeleteMapping("/{id}/like")
+    @Operation(summary = "取消点赞评论", description = "用户取消点赞评论")
+    public Result<CommentLikesVO> comment_unLikes(@PathVariable Long id){
+        log.info("取消点赞评论请求，评论ID：{}", id);
+        CommentLikesVO commentLikesVO = commentService.comment_unLikes(id);
+        return Result.success(commentLikesVO);
+    }
+
 }

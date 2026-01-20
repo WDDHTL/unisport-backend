@@ -1130,7 +1130,7 @@ Authorization: Bearer <JWT Token>
 **接口**: `POST /api/comments/{id}/like`
 
 **使用场景**:
-- 在帖子详情页为评论点赞或取消点赞
+- 在帖子详情页为评论点赞
 
 **前端页面**: `PostDetail.tsx`
 
@@ -1148,10 +1148,63 @@ Authorization: Bearer <JWT Token>
 ```
 
 **注意事项**:
-1. ⚠️ 幂等处理：重复点赞/取消不报错，仅返回当前状态。
+1. ⚠️ 幂等处理：重复点赞不报错，仅返回当前状态。
 2. ⚠️ 需校验评论所属帖子与当前登录用户学校一致，否则拒绝。
 3. 💡 点赞成功发送 like 类型通知给评论作者，避免给自己点赞时发送通知。
-4. 💡 后端根据 `action` 决定增减点赞数，返回最新 `likesCount` 与当前 `liked` 状态，便于前端同步。
+4. 💡 点赞接口返回最新 `likesCount` 与当前 `liked` 状态，便于前端同步；取消点赞请调用 `DELETE /api/comments/{id}/like`。
+
+### 5.10 取消点赞评论
+
+**接口**: `DELETE /api/comments/{id}/like`
+
+**使用场景**:
+- 在帖子详情页取消对评论的点赞
+- 修正误触点赞、同步最新点赞状态
+
+**前端页面**: `PostDetail.tsx`
+
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "操作成功",
+  "data": {
+    "liked": false,
+    "likesCount": 12
+  }
+}
+```
+
+**注意事项**:
+1. ⚠️ 幂等处理：重复取消点赞不报错，直接返回当前点赞状态。
+2. ⚠️ 需校验评论所属帖子与当前登录用户学校一致且用户已登录。
+3. 💡 取消点赞不再发送通知，仅更新计数和状态。
+4. 💡 返回最新 `likesCount` 与 `liked=false`，便于前端同步。
+
+### 5.11 删除评论
+
+**接口**: `DELETE /api/comments/{id}`
+
+**使用场景**:
+- 在帖子详情页删除自己发布的评论或回复
+- 帖子作者移除不当评论
+
+**前端页面**: `PostDetail.tsx`
+
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "删除成功"
+}
+```
+
+**注意事项**:
+1. ⚠️ 仅评论作者或帖子作者可删除，其他用户返回 40301。
+2. ⚠️ 逻辑删除，需同时隐藏该评论的子回复，防止孤儿节点。
+3. ⚠️ 需校验评论所属帖子与当前登录用户学校一致。
 
 ---
 
@@ -1477,7 +1530,9 @@ file: [二进制文件]（必填，仅支持图片）
 | PostDetail.tsx | POST /api/posts/{id}/like | 点赞帖子 |
 | PostDetail.tsx | POST /api/posts/{id}/comments | 评论帖子 |
 | PostDetail.tsx | POST /api/comments/{id}/reply | 回复评论 |
-| PostDetail.tsx | POST /api/comments/{id}/like | 点赞/取消点赞评论 |
+| PostDetail.tsx | POST /api/comments/{id}/like | 点赞评论 |
+| PostDetail.tsx | DELETE /api/comments/{id}/like | 取消点赞评论 |
+| PostDetail.tsx | DELETE /api/comments/{id} | 删除评论 |
 
 ---
 

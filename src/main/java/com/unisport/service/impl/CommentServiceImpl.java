@@ -214,6 +214,39 @@ public class CommentServiceImpl implements CommentService {
         return commentLikesVO;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CommentLikesVO comment_unLikes(Long id) {
+        // 1) 查评论、帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Comment comment = commentMapper.selectById(id);
+        if (comment == null) {
+            throw new BusinessException(40401, "评论不存在");
+        }
+        Long postId = comment.getPostId();
+        Post post = postMapper.selectById(postId);
+        if (post == null || post.getDeleted() == 1) {
+            throw new BusinessException(40401, "帖子不存在");
+        }
+
+        if(comment.getLikesCount() > 0){
+            commentMapper.update(
+                    null,
+                    new UpdateWrapper<Comment>()
+                            .eq("id", id)
+                            .setSql("likes_count = likes_count - 1")
+            );
+            commentLikesMapper.deleteByCommentIdAndUserId(id, UserContext.getUserId());
+        }
+
+        CommentLikesVO commentLikesVO = new CommentLikesVO();
+        commentLikesVO.setLiked(false);
+        // TODO 后续优化：事务没有提交 先手动-1
+        commentLikesVO.setLikesCount(comment.getLikesCount() - 1);
+
+
+        return commentLikesVO;
+    }
+
     /*
      * 构造评论提示文案
      * */
