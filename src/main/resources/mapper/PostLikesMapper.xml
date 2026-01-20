@@ -11,6 +11,7 @@
         <foreach collection="postIds" item="pid" open="(" separator="," close=")">
             #{pid}
         </foreach>
+        AND deleted = 1
     </delete>
 
 

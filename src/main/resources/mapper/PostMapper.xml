@@ -11,6 +11,7 @@
         <foreach collection="ids" item="id" open="(" separator="," close=")">
             #{id}
         </foreach>
+        AND deleted = 1
     </delete>
 
 

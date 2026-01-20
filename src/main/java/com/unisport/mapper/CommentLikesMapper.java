@@ -6,6 +6,8 @@ import com.unisport.entity.CommentLikes;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 /**
  * <p>
  * $ 服务实现类
@@ -23,4 +25,6 @@ public interface CommentLikesMapper extends BaseMapper<CommentLikes> {
      */
     @Delete("delete from comment_likes where comment_id = #{id} and user_id = #{userId};")
     void deleteByCommentIdAndUserId(Long id, Long userId);
+
+    void deleteByCommentIds(List<Long> commentIds);
 }

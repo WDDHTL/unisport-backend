@@ -392,6 +392,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deletePost(Long id) {
         // 1) 查帖子是否存在、是否被删除，并拿到作者信息（用于通知）
         Post post = postMapper.selectById(id);
@@ -412,6 +413,13 @@ public class PostServiceImpl implements PostService {
                         .set("deleted_at", LocalDateTime.now())
         );
 
+        // 获取所有相关评论
+        List<Comment> comments = commentMapper.selectList(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getPostId, id)
+                        .eq(Comment::getDeleted, 0)
+        );
+
         // 删除关联的评论信息
         commentMapper.update(
                 null,
@@ -428,7 +436,16 @@ public class PostServiceImpl implements PostService {
                         .set("deleted", 1)
         );
 
-        // TODO: 后续还要添加删除评论点赞信息
+        // 删除评论点赞信息
+        // 一个帖子 -> 多个评论 -> 多个点赞评论信息
+        List<Long> commentIds = comments.stream().map(Comment::getId).collect(Collectors.toList());
+        commentLikesMapper.update(
+                null,
+                new UpdateWrapper<CommentLikes>()
+                        .in("comment_id", commentIds)
+                        .set("deleted", 1)
+        );
+
     }
 
     /*

@@ -2,7 +2,9 @@ package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
+import com.unisport.entity.Comment;
 import com.unisport.entity.Post;
+import com.unisport.mapper.CommentLikesMapper;
 import com.unisport.mapper.CommentMapper;
 import com.unisport.mapper.PostLikesMapper;
 import com.unisport.mapper.PostMapper;
@@ -29,9 +31,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PostPurgeServiceImpl implements PostPurgeService {
 
-    private PostMapper postMapper;
-    private CommentMapper commentMapper;
-    private PostLikesMapper postLikesMapper;
+    private final PostMapper postMapper;
+    private final CommentMapper commentMapper;
+    private final PostLikesMapper postLikesMapper;
+    private final CommentLikesMapper commentLikesMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -51,12 +54,21 @@ public class PostPurgeServiceImpl implements PostPurgeService {
                 .map(Post::getId)
                 .collect(Collectors.toList());
 
-        commentMapper.deleteByPostIds(postIds);
+        // 获取相关评论
+        List<Comment> comments = commentMapper.selectList(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getDeleted, 0)
+                        .in(Comment::getPostId, postIds)
+        );
 
-        postMapper.deleteByPostIds(postIds);
+        commentMapper.deleteByPostIds(postIds);
 
         postLikesMapper.deleteByPostIds(postIds);
 
-        // TODO: 后续还要添加删除评论点赞信息
+        postMapper.deleteByPostIds(postIds);
+        // 后续还要添加删除评论点赞信息
+        List<Long> commentIds = comments.stream().map(Comment::getId).collect(Collectors.toList());
+        commentLikesMapper.deleteByCommentIds(commentIds);
+
     }
 }

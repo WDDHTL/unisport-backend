@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.unisport.mapper.CommentLikesMapper">
+
+
+    <delete id="deleteByCommentIds">
+        DELETE FROM comment_likes
+        WHERE comments_id IN
+        <foreach collection="commentIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+        AND deleted = 1
+    </delete>
+
+</mapper>
