@@ -52,4 +52,12 @@ public class CommentController {
         return Result.success(commentLikesVO);
     }
 
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除评论", description = "用户删除评论")
+    public Result deleteComment(@PathVariable Long id) {
+        log.info("接收删除评论请求，评论ID：{}", id);
+        commentService.deleteComment(id);
+        return Result.success();
+    }
+
 }

@@ -13,8 +13,14 @@
         </foreach>
         AND deleted = 1
     </delete>
-
-
+    <delete id="deleteByCommentIds">
+        DELETE FROM comments
+        WHERE id IN
+        <foreach collection="commentIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+        AND deleted = 1
+    </delete>
 
 
 </mapper>

@@ -1,5 +1,6 @@
 package com.unisport.entity;
 
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -23,4 +24,6 @@ public class CommentLikes implements Serializable {
     private Long commentId;
     private Long userId;
     private LocalDateTime createdAt;
+    @TableLogic
+    private Integer deleted;
 }

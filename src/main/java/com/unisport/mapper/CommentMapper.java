@@ -21,4 +21,5 @@ public interface CommentMapper extends BaseMapper<Comment> {
 
     int deleteByPostIds(@Param("postIds") List<Long> postIds);
 
+    void deleteByCommentIds(List<Long> commentIds);
 }

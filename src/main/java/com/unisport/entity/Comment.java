@@ -27,4 +27,5 @@ public class Comment implements Serializable {
     private Integer likesCount;
     private Integer deleted;
     private LocalDateTime createdAt;
+    private LocalDateTime deletedAt;
 }

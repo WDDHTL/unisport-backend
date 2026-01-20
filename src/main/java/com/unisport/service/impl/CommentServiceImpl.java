@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -245,6 +247,66 @@ public class CommentServiceImpl implements CommentService {
 
 
         return commentLikesVO;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteComment(Long id) {
+        // 1) 查评论、帖子是否存在、是否被删除，并拿到作者信息（用于通知）
+        Comment comment = commentMapper.selectById(id);
+        if (comment == null) {
+            throw new BusinessException(40401, "评论不存在");
+        }
+        Long postId = comment.getPostId();
+        Post post = postMapper.selectById(postId);
+
+        // 获取 帖子作者id 和 评论作者id
+        Long post_userId = post.getUserId();
+        Long userId = comment.getUserId();
+        // 获取登录用户
+        Long loginUserId = UserContext.getUserId();
+        if (!post_userId.equals(loginUserId) && !userId.equals(loginUserId)) {
+            throw new BusinessException(40301, "无权限删除");
+        }
+
+        // 删除评论、子评论、评论以及子评论的点赞信息
+        List<Comment> comments = commentMapper.selectList(
+                new LambdaQueryWrapper<Comment>()
+                        .eq(Comment::getParentId, id)
+        );
+        // 逻辑删除评论
+        commentMapper.update(
+                null,
+                new UpdateWrapper<Comment>()
+                        .eq("id", id)
+                        .set("deleted", 1)
+                        .set("deleted_at", LocalDateTime.now())
+        );
+        // 获取子评论的id列表
+        List<Long> collect = comments.stream().map(c -> c.getId()).collect(Collectors.toList());
+        commentMapper.update(
+                null,
+                new UpdateWrapper<Comment>()
+                        .in("id", collect)
+                        .set("deleted", 1)
+                        .set("deleted_at", LocalDateTime.now())
+        );
+        // 加上待删除的评论id
+        collect.add(id);
+        commentLikesMapper.delete(
+                new LambdaQueryWrapper<CommentLikes>()
+                        .in(CommentLikes::getCommentId, collect)
+        );
+
+        int size = collect.size();
+        postMapper.update(
+                null,
+                new UpdateWrapper<Post>()
+                        .eq("id", postId)
+                        .setSql("comments_count = comments_count - " + size)
+        );
+
+
     }
 
     /*

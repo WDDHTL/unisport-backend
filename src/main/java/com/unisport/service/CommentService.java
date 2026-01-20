@@ -17,4 +17,6 @@ public interface CommentService {
     CommentLikesVO comment_Likes(Long id);
 
     CommentLikesVO comment_unLikes(Long id);
+
+    void deleteComment(Long id);
 }
