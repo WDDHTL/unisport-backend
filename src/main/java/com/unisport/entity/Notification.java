@@ -25,6 +25,7 @@ public class Notification implements Serializable {
     private Long senderId;
     private NotifyType type;
     private RelatedType relatedType;
+    private Long postId;
     private Long relatedId;
     private String content;
     private int isRead;

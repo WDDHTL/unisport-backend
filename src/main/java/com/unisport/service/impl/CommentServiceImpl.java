@@ -92,7 +92,8 @@ public class CommentServiceImpl implements CommentService {
             n.setSenderId(userId);              // 触发者
             n.setType(NotifyType.COMMENT);
             n.setRelatedType(RelatedType.COMMENT);            // 关联对象类型
-            n.setRelatedId(id);              // 关联对象 id
+            n.setPostId(postId);
+            n.setRelatedId(newComment.getId());              // 关联对象 id
             n.setContent(content); // 展示文案（列表第二行）
             n.setIsRead(0);                      // 未读
             n.setCreatedAt(LocalDateTime.now());
@@ -167,12 +168,13 @@ public class CommentServiceImpl implements CommentService {
             );
             // 5) 插入通知：自己给自己点赞一般不通知
             if (!userId.equals(recipientId)){
-                String content = buildCommentLikePreview(user.getNickname(),post.getContent());
+                String content = buildCommentLikePreview(user.getNickname(),comment.getContent());
                 Notification n = new Notification();
                 n.setUserId(recipientId);            // 收件人
                 n.setSenderId(userId);              // 触发者
                 n.setType(NotifyType.LIKE);
-                n.setRelatedType(RelatedType.POST);            // 关联对象类型
+                n.setRelatedType(RelatedType.COMMENT);            // 关联对象类型
+                n.setPostId(postId);
                 n.setRelatedId(id);              // 关联对象 id
                 n.setContent(content); // 展示文案（列表第二行）
                 n.setIsRead(0);                      // 未读

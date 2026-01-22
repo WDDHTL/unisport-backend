@@ -1230,6 +1230,9 @@ Authorization: Bearer <JWT Token>
         "type": "like",
         "userName": "李四",
         "content": "赞了你的帖子",
+        "related_type": post,
+        "related_id": 5, 
+        "post_id": 1,
         "isRead": false,
         "createdAt": "2025-12-01T15:00:00"
       }

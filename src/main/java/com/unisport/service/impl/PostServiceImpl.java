@@ -213,6 +213,7 @@ public class PostServiceImpl implements PostService {
                 n.setType(NotifyType.LIKE);
                 n.setRelatedType(RelatedType.POST);            // 关联对象类型
                 n.setRelatedId(id);              // 关联对象 id
+                n.setPostId(id);
                 n.setContent(content); // 展示文案（列表第二行）
                 n.setIsRead(0);                      // 未读
                 n.setCreatedAt(LocalDateTime.now());
@@ -363,6 +364,7 @@ public class PostServiceImpl implements PostService {
             n.setType(NotifyType.COMMENT);
             n.setRelatedType(RelatedType.POST);            // 关联对象类型
             n.setRelatedId(id);              // 关联对象 id
+            n.setPostId(id);
             n.setContent(content); // 展示文案（列表第二行）
             n.setIsRead(0);                      // 未读
             n.setCreatedAt(LocalDateTime.now());
