@@ -4,15 +4,34 @@ import com.unisport.dto.NotificationQueryDTO;
 import com.unisport.vo.NotificationListVO;
 
 /**
- * 通知模块接口定义。
+ * Notification module service contract.
  */
 public interface NotificationService {
 
     /**
-     * 按照类型和分页条件获取当前登录用户的通知列表。
+     * Query notification list for current user with optional type filter and pagination.
      *
-     * @param queryDTO 查询条件（类型、页码、分页大小）
-     * @return 通知分页数据及未读数量
+     * @param queryDTO query conditions
+     * @return paged notification data and unread count
      */
     NotificationListVO listNotifications(NotificationQueryDTO queryDTO);
+
+    /**
+     * Mark a single notification as read.
+     *
+     * @param notificationId notification id
+     */
+    void markAsRead(Long notificationId);
+
+    /**
+     * Mark all notifications of current user as read.
+     */
+    void markAllAsRead();
+
+    /**
+     * Get unread notification count for current user.
+     *
+     * @return unread count
+     */
+    Long getUnreadCount();
 }

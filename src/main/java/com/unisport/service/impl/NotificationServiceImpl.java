@@ -1,6 +1,7 @@
 package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.Enum.NotifyType;
 import com.unisport.common.BusinessException;
@@ -27,8 +28,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 通知模块业务实现。
- * <p>负责根据用户、类型、分页条件查询通知，并返回前端所需的汇总数据。</p>
+ * Notification domain service implementation.
  */
 @Slf4j
 @Service
@@ -38,24 +38,13 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationMapper notificationMapper;
     private final UserMapper userMapper;
 
-    /**
-     * 获取当前登录用户的通知分页列表，同时附带未读数量。
-     *
-     * @param queryDTO 查询条件（类型过滤、页码、分页大小）
-     * @return 包含列表、未读数与分页元信息的响应对象
-     */
     @Override
     public NotificationListVO listNotifications(NotificationQueryDTO queryDTO) {
-        Long userId = UserContext.getUserId();
-        if (userId == null) {
-            throw new BusinessException(40101, "您尚未登录，请先登录");
-        }
-
+        Long userId = requireLogin();
         NotifyType notifyType = resolveNotifyType(queryDTO.getType());
         long pageNum = queryDTO.getCurrent() == null || queryDTO.getCurrent() <= 0 ? 1L : queryDTO.getCurrent();
         long pageSize = queryDTO.getSize() == null || queryDTO.getSize() <= 0 ? 20L : queryDTO.getSize();
 
-        // 构建查询条件：限定当前用户、可选类型过滤，按时间倒序
         LambdaQueryWrapper<Notification> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Notification::getUserId, userId);
         if (notifyType != null) {
@@ -65,9 +54,7 @@ public class NotificationServiceImpl implements NotificationService {
 
         Page<Notification> page = notificationMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
 
-        // 预先批量加载触发人信息，避免 N+1 查询
         Map<Long, User> senderMap = resolveSenders(page.getRecords());
-
         List<NotificationVO> records = page.getRecords().stream()
                 .map(notification -> buildNotificationVO(notification, senderMap))
                 .collect(Collectors.toList());
@@ -88,12 +75,70 @@ public class NotificationServiceImpl implements NotificationService {
         return vo;
     }
 
-    /**
-     * 将前端传入的字符串类型解析为 NotifyType 枚举。
-     *
-     * @param type 文档约定的类型字符串
-     * @return 匹配的枚举，若为 all 或空则返回 null 表示不做类型过滤
-     */
+    @Override
+    public void markAsRead(Long notificationId) {
+        Long userId = requireLogin();
+        if (notificationId == null || notificationId <= 0) {
+            throw new BusinessException(40004, "通知ID不合法");
+        }
+        Notification notification = notificationMapper.selectById(notificationId);
+        if (notification == null) {
+            throw new BusinessException(40401, "通知不存在");
+        }
+        if (!userId.equals(notification.getUserId())) {
+            throw new BusinessException(40301, "您没有权限操作该通知");
+        }
+        if (notification.getIsRead() == 1) {
+            return;
+        }
+
+        int rows = notificationMapper.update(
+                null,
+                new UpdateWrapper<Notification>()
+                        .eq("id", notificationId)
+                        .eq("user_id", userId)
+                        .eq("is_read", 0)
+                        .set("is_read", 1)
+        );
+        if (rows <= 0) {
+            throw new BusinessException(50001, "标记已读失败，请稍后重试");
+        }
+    }
+
+    @Override
+    public void markAllAsRead() {
+        Long userId = requireLogin();
+        Long unreadCount = notificationMapper.selectCount(
+                new LambdaQueryWrapper<Notification>()
+                        .eq(Notification::getUserId, userId)
+                        .eq(Notification::getIsRead, 0)
+        );
+        if (unreadCount == null || unreadCount == 0) {
+            return;
+        }
+        int rows = notificationMapper.update(
+                null,
+                new UpdateWrapper<Notification>()
+                        .eq("user_id", userId)
+                        .eq("is_read", 0)
+                        .set("is_read", 1)
+        );
+        if (rows <= 0) {
+            throw new BusinessException(50001, "标记全部已读失败，请稍后重试");
+        }
+    }
+
+    @Override
+    public Long getUnreadCount() {
+        Long userId = requireLogin();
+        Long count = notificationMapper.selectCount(
+                new LambdaQueryWrapper<Notification>()
+                        .eq(Notification::getUserId, userId)
+                        .eq(Notification::getIsRead, 0)
+        );
+        return count == null ? 0L : count;
+    }
+
     private NotifyType resolveNotifyType(String type) {
         if (type == null || "all".equalsIgnoreCase(type.trim())) {
             return null;
@@ -105,12 +150,6 @@ public class NotificationServiceImpl implements NotificationService {
         }
     }
 
-    /**
-     * 批量查询触发通知的用户信息并转为 Map，减少后续查库次数。
-     *
-     * @param notifications 通知列表
-     * @return senderId -> User 的映射表
-     */
     private Map<Long, User> resolveSenders(List<Notification> notifications) {
         if (CollectionUtils.isEmpty(notifications)) {
             return Collections.emptyMap();
@@ -129,13 +168,6 @@ public class NotificationServiceImpl implements NotificationService {
         return users.stream().collect(Collectors.toMap(User::getId, Function.identity()));
     }
 
-    /**
-     * 将通知实体转换为前端所需的 VO。
-     *
-     * @param notification 通知实体
-     * @param senderMap    已查询的发送人信息
-     * @return 转换后的 VO
-     */
     private NotificationVO buildNotificationVO(Notification notification, Map<Long, User> senderMap) {
         NotificationVO vo = new NotificationVO();
         vo.setId(notification.getId());
@@ -155,5 +187,13 @@ public class NotificationServiceImpl implements NotificationService {
         vo.setIsRead(notification.getIsRead() == 1);
         vo.setCreatedAt(notification.getCreatedAt());
         return vo;
+    }
+
+    private Long requireLogin() {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        return userId;
     }
 }

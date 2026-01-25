@@ -5,58 +5,6 @@
 
 ---
 
-### 6.1 获取通知列表
-
-**接口**: `GET /api/notifications`
-
-**使用场景**:
-- 查看消息通知
-
-**前端页面**: `MyMessages.tsx`
-
-**查询参数**:
-
-| 参数 | 类型 | 默认值 | 说明 |
-|------|------|-------|------|
-| type | String | all | 通知类型：like/comment/follow/all |
-| current | Integer | 1 | 页码 |
-| size | Integer | 20 | 每页大小 |
-
-**成功响应**:
-
-```json
-{
-  "code": 200,
-  "data": {
-    "records": [
-      {
-        "id": 1,
-        "type": "like",
-        "userName": "李四",
-        "content": "赞了你的帖子",
-        "isRead": false,
-        "createdAt": "2025-12-01T15:00:00"
-      }
-    ],
-    "unreadCount": 5
-  }
-}
-```
-
----
-
-### 6.2 标记已读
-
-**接口**: `PUT /api/notifications/{id}/read`
-
----
-
-### 6.3 全部已读
-
-**接口**: `PUT /api/notifications/read-all`
-
----
-
 ### 6.4 未读数量
 
 **接口**: `GET /api/notifications/unread-count`
