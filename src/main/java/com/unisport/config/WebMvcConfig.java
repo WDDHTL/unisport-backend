@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -45,5 +46,11 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/v3/api-docs/**",
                         "/doc.html"
                 );
+    }
+
+    @Override
+    public void configurePathMatch(PathMatchConfigurer configurer) {
+        // Accept both "/path" and "/path/" to avoid 404 when the trailing slash differs between FE and BE.
+        configurer.setUseTrailingSlashMatch(true);
     }
 }

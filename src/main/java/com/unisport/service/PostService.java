@@ -1,15 +1,11 @@
 package com.unisport.service;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.unisport.common.LikePostResult;
+import com.unisport.common.ScrollPageResult;
 import com.unisport.dto.CommentDTO;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
-import com.unisport.vo.NewPostVO;
 import com.unisport.vo.PostVO;
-
-import java.util.List;
 
 /**
  * 帖子服务接口
@@ -27,7 +23,7 @@ public interface PostService {
      */
     Post createPost(CreatePostDTO createPostDTO);
 
-    List<PostVO> getPostList(PostQueryDTO postQueryDTO);
+    ScrollPageResult<PostVO> getPostList(PostQueryDTO postQueryDTO);
 
     void post_Likes(Long id);
 

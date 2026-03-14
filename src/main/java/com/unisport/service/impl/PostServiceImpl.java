@@ -3,12 +3,11 @@ package com.unisport.service.impl;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.unisport.Enum.NotifyType;
 import com.unisport.Enum.RelatedType;
 import com.unisport.WebSocket.WebSocketServer;
 import com.unisport.common.BusinessException;
-import com.unisport.common.LikePostResult;
+import com.unisport.common.ScrollPageResult;
 import com.unisport.common.UserContext;
 import com.unisport.dto.CommentDTO;
 import com.unisport.dto.CreatePostDTO;
@@ -105,66 +104,88 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public List<PostVO> getPostList(PostQueryDTO postQueryDTO) {
-        log.info("查询帖子列表，参数：{}", postQueryDTO);
+    public ScrollPageResult<PostVO> getPostList(PostQueryDTO postQueryDTO) {
+        log.info("Query post list, params: {}", postQueryDTO);
 
-        // ===== 1. 严格安全校验 =====
-        // 1.1 用户校验
         Long userId = UserContext.getUserId();
         if (userId == null) {
-            throw new BusinessException("用户未登录");
+            throw new BusinessException("user not logged in");
         }
 
         Long schoolId = UserContext.getSchoolId();
         if (schoolId == null) {
             User user = userMapper.selectById(userId);
             if (user == null) {
-                throw new BusinessException("用户不存在");
+                throw new BusinessException("user not found");
             }
             schoolId = user.getSchoolId();
         }
 
-        // 1.3 分类ID校验
         if (postQueryDTO.getCategoryId() == null) {
-            throw new BusinessException("分类ID不能为空");
+            throw new BusinessException("categoryId is required");
         }
 
-        log.info("查询帖子列表，用户ID：{}, 学校: {}, 分类: {}", userId, schoolId, postQueryDTO.getCategoryId());
+        int size = postQueryDTO.getSize() == null ? 10 : postQueryDTO.getSize();
+        if (size <= 0) {
+            throw new BusinessException("size must be positive");
+        }
+        if (size > 50) {
+            size = 50;
+        }
 
-        // 构建查询条件（MyBatis-Plus会自动添加 deleted=0 条件）
+        log.info("Query post list, userId: {}, schoolId: {}, categoryId: {}, size: {}", userId, schoolId, postQueryDTO.getCategoryId(), size);
+
         LambdaQueryWrapper<Post> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Post::getSchoolId, schoolId)
-                   .eq(Post::getCategoryId, postQueryDTO.getCategoryId())
-                   .orderByDesc(Post::getCreatedAt);
+                .eq(Post::getCategoryId, postQueryDTO.getCategoryId());
 
-        // 执行分页查询
-        List<Post> posts = postMapper.selectList(queryWrapper);
+        LocalDateTime cursorTime = postQueryDTO.getCursorTime();
+        Long cursorId = postQueryDTO.getCursorId();
+        if (cursorTime != null) {
+            queryWrapper.and(w -> {
+                w.lt(Post::getCreatedAt, cursorTime);
+                if (cursorId != null) {
+                    w.or(or -> or.eq(Post::getCreatedAt, cursorTime)
+                            .lt(Post::getId, cursorId));
+                }
+            });
+        }
 
-        // 转换为VO
+        queryWrapper.orderByDesc(Post::getCreatedAt)
+                .orderByDesc(Post::getId);
+
+        List<Post> posts = postMapper.selectList(queryWrapper.last("limit " + (size + 1)));
+
+        boolean hasMore = posts.size() > size;
+        if (hasMore) {
+            posts = posts.subList(0, size);
+        }
+
         List<PostVO> voList = posts.stream().map(post -> {
             PostVO vo = new PostVO();
             BeanUtils.copyProperties(post, vo);
-            
-            // 查询用户信息
+
             User postUser = userMapper.selectById(post.getUserId());
             if (postUser != null) {
                 vo.setUserName(postUser.getNickname());
                 vo.setUserAvatar(postUser.getAvatar());
             }
-            
-            vo.setLiked(false); // TODO 默认未点赞
+
+            vo.setLiked(false);
             return vo;
         }).collect(Collectors.toList());
 
-        log.info("查询到 {} 条帖子数据", voList.size());
-        return voList;
+        LocalDateTime nextCursorTime = null;
+        Long nextCursorId = null;
+        if (!posts.isEmpty()) {
+            Post last = posts.get(posts.size() - 1);
+            nextCursorTime = last.getCreatedAt();
+            nextCursorId = last.getId();
+        }
+
+        return ScrollPageResult.of(voList, size, hasMore, nextCursorTime, nextCursorId);
     }
 
-    /**
-     * 点赞帖子
-     *
-     * @param id 帖子ID
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void post_Likes(Long id) {

@@ -53,7 +53,7 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(50001, "注册失败，请稍后重试");
         }
 
-        // ?????????ID???
+        // 记录用户ID和账号
         log.info("用户注册成功，用户ID：{}，账号：{}", user.getId(), user.getAccount());
 
         createPrimaryEducationRecord(user, registerDTO);
@@ -67,9 +67,9 @@ public class AuthServiceImpl implements AuthService {
         Long count = userMapper.selectCount(queryWrapper);
 
         if (count != null && count > 0) {
-            // ??????????????
+            // 校验账号是否已存在
             log.warn("账号已存在：{}", account);
-            throw new BusinessException(40001, "账号已存在，请替换账号");
+            throw new BusinessException(40001, "账号已存在，请更换账号");
         }
     }
 
@@ -79,7 +79,7 @@ public class AuthServiceImpl implements AuthService {
         Long count = userMapper.selectCount(queryWrapper);
 
         if (count != null && count > 0) {
-            // ????????
+            // 校验学号唯一性
             log.warn("学号已被注册：{}", studentId);
             throw new BusinessException(40002, "该学号已被注册，一个学号只能注册一个账号");
         }
@@ -94,13 +94,13 @@ public class AuthServiceImpl implements AuthService {
 
         Student student = studentMapper.selectOne(queryWrapper);
         if (student == null) {
-            // ????????????????/??
-            log.warn("学号验证失败：学号={}，学校ID={}，学院ID={}", registerDTO.getStudentId(), registerDTO.getSchoolId(), registerDTO.getDepartmentId());
+            // 校验学号、学校和学院信息是否匹配
+            log.warn("学号验证失败：学号{}，学校ID={}，学院ID={}", registerDTO.getStudentId(), registerDTO.getSchoolId(), registerDTO.getDepartmentId());
             throw new BusinessException(40005, "学号验证失败：该学号不存在或学校/学院信息不匹配");
         }
 
-        // ??????????????
-        log.debug("学生身份验证通过：学号={}，姓名={}", student.getStudentId(), student.getName());
+        // 学生身份验证通过
+        log.debug("学生身份验证通过：学号{}，姓名{}", student.getStudentId(), student.getName());
     }
 
     private User buildUser(RegisterDTO registerDTO) {
@@ -114,7 +114,7 @@ public class AuthServiceImpl implements AuthService {
         user.setStudentId(registerDTO.getStudentId());
         user.setStatus(1);
 
-        // ?????????????
+        // 构建用户实体
         log.debug("用户实体构建完成，账号：{}", user.getAccount());
         return user;
     }
@@ -130,7 +130,7 @@ public class AuthServiceImpl implements AuthService {
 
         int insertedRows = userEducationMapper.insert(education);
         if (insertedRows <= 0) {
-            // ??????????????
+            // 教育经历记录插入失败
             log.error("注册失败，教育经历插入失败，账号：{}", registerDTO.getAccount());
             throw new BusinessException(50001, "注册失败，请稍后重试");
         }
@@ -148,13 +148,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginVO login(LoginDTO loginDTO) {
-        // ?????????????
+        // 处理用户登录请求
         log.info("开始处理用户登录，账号：{}", loginDTO.getAccount());
 
         try {
             User user = getUserByAccount(loginDTO.getAccount());
             if (user == null) {
-                // ??????????
+                // 账号不存在
                 log.warn("登录失败：账号不存在，账号：{}", loginDTO.getAccount());
                 throw new BusinessException(40003, "账号或密码错误，请检查后重试");
             }
@@ -168,16 +168,14 @@ public class AuthServiceImpl implements AuthService {
 
             LoginVO loginVO = buildLoginVO(token, user);
 
-            
-
-            // ????????ID???
+            // 登录成功记录用户信息
             log.info("用户登录成功，用户ID：{}，账号：{}", user.getId(), user.getAccount());
             return loginVO;
 
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            // ????????????????
+            // 登录过程发生异常
             log.error("登录过程发生异常，账号：{}", loginDTO.getAccount(), e);
             throw new BusinessException(50000, "登录失败，系统异常，请稍后重试");
         }
@@ -191,7 +189,7 @@ public class AuthServiceImpl implements AuthService {
 
     private void validateAccountStatus(User user) {
         if (user.getStatus() == null || user.getStatus() != 1) {
-            // ??????????????
+            // 校验账号状态是否可用
             log.warn("登录失败：账号已被禁用，账号：{}，状态：{}", user.getAccount(), user.getStatus());
             throw new BusinessException(40004, "您的账号已被禁用，如有疑问请联系管理员");
         }
@@ -200,7 +198,7 @@ public class AuthServiceImpl implements AuthService {
     private void validatePassword(String rawPassword, String encodedPassword, String account) {
         boolean isPasswordCorrect = BCrypt.checkpw(rawPassword, encodedPassword);
         if (!isPasswordCorrect) {
-            // ????????
+            // 校验密码是否正确
             log.warn("登录失败：密码错误，账号：{}", account);
             throw new BusinessException(40003, "账号或密码错误，请检查后重试");
         }
@@ -246,7 +244,7 @@ public class AuthServiceImpl implements AuthService {
                 jwtProperties.getSecret(),
                 jwtProperties.getExpiration()
         );
-        // Token ?????????ID
+        // Token中包含用户ID
         log.debug("JWT Token生成成功，用户ID：{}", user.getId());
         return token;
     }

@@ -3,14 +3,10 @@ package com.unisport.dto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
- * <p>
- * $ 服务实现类
- * </p>
- *
- * @author 86139$
- * @since 2025/12/11$
+ * 帖子列表查询参数
  */
 @Data
 public class PostQueryDTO implements Serializable {
@@ -23,12 +19,17 @@ public class PostQueryDTO implements Serializable {
     private Integer categoryId;
 
     /**
-     * 页码
+     * 游标时间（上一页最后一条的 created_at）
      */
-    private Integer current = 1;
+    private LocalDateTime cursorTime;
 
     /**
-     * 每页大小
+     * 游标ID（与游标时间配合，解决同一时间戳的并发写入排序）
+     */
+    private Long cursorId;
+
+    /**
+     * 每次请求条数，默认 10，最大 50
      */
     private Integer size = 10;
 }

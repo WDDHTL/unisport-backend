@@ -1,14 +1,13 @@
 package com.unisport.controller;
 
 import com.unisport.common.Result;
+import com.unisport.common.ScrollPageResult;
 import com.unisport.dto.CommentDTO;
 import com.unisport.dto.CreatePostDTO;
 import com.unisport.dto.PostQueryDTO;
 import com.unisport.entity.Post;
 import com.unisport.service.PostService;
-import com.unisport.vo.CommentVO;
 import com.unisport.vo.PostVO;
-import com.unisport.vo.NewPostVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,13 +16,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
 /**
  * 帖子控制器
- * 处理帖子相关的HTTP请求
- *
- * @author UniSport Team
  */
 @Slf4j
 @RestController
@@ -34,60 +30,47 @@ public class PostController {
 
     private final PostService postService;
 
-    /**
-     * 发布帖子
-     * 
-     * 接口说明：
-     * - 需要登录认证（JWT Token）
-     * - 内容长度限制：1-5000字符
-     * - 图片数量限制：最多9张
-     * - 频率限制：1分钟内最多发布3条
-     * 
-     * 业务流程：
-     * 1. 从JWT Token获取当前用户ID
-     * 2. 验证运动分类是否存在
-     * 3. 检查发帖频率限制
-     * 4. 创建帖子记录
-     * 5. 返回帖子实体
-     *
-     * @param createPostDTO 发布帖子请求数据
-     * @return 发布成功的帖子实体
-     */
     @PostMapping
     @Operation(summary = "发布帖子", description = "用户发布新帖子")
     public Result<Post> createPost(@Valid @RequestBody CreatePostDTO createPostDTO) {
         log.info("接收发布帖子请求，分类ID：{}", createPostDTO.getCategoryId());
-        
         Post post = postService.createPost(createPostDTO);
-        
         return Result.success(post);
     }
 
     @GetMapping
-    @Operation(summary = "查询帖子列表", description = "获取所有帖子列表")
-    public Result<List<PostVO>> listPosts(
+    @Operation(summary = "查询帖子列表", description = "获取帖子列表，支持滚动分页")
+    public Result<ScrollPageResult<PostVO>> listPosts(
             @Parameter(description = "运动分类ID", example = "1")
-            @RequestParam(required = true) Integer categoryId
+            @RequestParam(required = true) Integer categoryId,
+            @Parameter(description = "游标时间，上一页最后一条的 created_at", example = "2026-03-13T09:59:50Z")
+            @RequestParam(value = "cursor_time", required = false) LocalDateTime cursorTime,
+            @Parameter(description = "游标ID，上一页最后一条的 id", example = "122")
+            @RequestParam(value = "cursor_id", required = false) Long cursorId,
+            @Parameter(description = "每次请求条数", example = "10")
+            @RequestParam(value = "size", required = false, defaultValue = "10") Integer size
     ) {
         log.info("接收查询帖子列表请求，分类ID：{}", categoryId);
         PostQueryDTO postQueryDTO = new PostQueryDTO();
         postQueryDTO.setCategoryId(categoryId);
+        postQueryDTO.setCursorTime(cursorTime);
+        postQueryDTO.setCursorId(cursorId);
+        postQueryDTO.setSize(size);
 
-        List<PostVO> PostVOs = postService.getPostList(postQueryDTO);
-        return Result.success(PostVOs);
-
+        ScrollPageResult<PostVO> postVOs = postService.getPostList(postQueryDTO);
+        return Result.success(postVOs);
     }
 
     @PostMapping("/{id}/like")
     @Operation(summary = "点赞帖子", description = "用户点赞帖子")
-    public Result post_Likes(@PathVariable Long id){
+    public Result<Void> post_Likes(@PathVariable Long id) {
         postService.post_Likes(id);
         return Result.success();
     }
 
     @Operation(summary = "取消点赞帖子", description = "用户取消点赞帖子")
     @DeleteMapping("/{id}/like")
-    public Result post_UnLikes(@PathVariable Long id){
+    public Result<Void> post_UnLikes(@PathVariable Long id) {
         postService.post_UnLikes(id);
         return Result.success();
     }
@@ -101,16 +84,16 @@ public class PostController {
     }
 
     @PostMapping("/{id}/comments")
-    @Operation(summary = "发布评论", description = "用户发布评论")
-    public Result createComment(@PathVariable Long id, @Valid @RequestBody CommentDTO commentDTO) {
-        log.info("接收发布评论请求，帖子ID：{}", id);
+    @Operation(summary = "发表评论", description = "用户发表评论")
+    public Result<Void> createComment(@PathVariable Long id, @Valid @RequestBody CommentDTO commentDTO) {
+        log.info("接收发表评论请求，帖子ID：{}", id);
         postService.createComment(id, commentDTO);
         return Result.success();
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "删除帖子", description = "用户删除帖子")
-    public Result deletePost(@PathVariable Long id) {
+    public Result<Void> deletePost(@PathVariable Long id) {
         log.info("接收删除帖子请求，帖子ID：{}", id);
         postService.deletePost(id);
         return Result.success();

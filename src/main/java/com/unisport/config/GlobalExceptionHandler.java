@@ -7,6 +7,8 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 全局异常处理器
@@ -31,8 +33,8 @@ public class GlobalExceptionHandler {
     public Result<?> handleValidationException(MethodArgumentNotValidException e) {
         String message = e.getBindingResult().getFieldError() != null
                 ? e.getBindingResult().getFieldError().getDefaultMessage()
-                : "参数校验失败";
-        log.error("参数校验异常: {}", message);
+                : "请求参数错误";
+        log.error("参数校验失败: {}", message);
         return Result.error(400, message);
     }
 
@@ -43,13 +45,28 @@ public class GlobalExceptionHandler {
     public Result<?> handleBindException(BindException e) {
         String message = e.getBindingResult().getFieldError() != null
                 ? e.getBindingResult().getFieldError().getDefaultMessage()
-                : "参数绑定失败";
-        log.error("参数绑定异常: {}", message);
+                : "请求参数错误";
+        log.error("参数绑定失败: {}", message);
         return Result.error(400, message);
     }
 
     /**
-     * 全局异常处理
+     * 资源或接口不存在
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public Result<?> handleNotFound(Exception e) {
+        String path = null;
+        if (e instanceof NoResourceFoundException resourceEx) {
+            path = resourceEx.getResourcePath();
+        } else if (e instanceof NoHandlerFoundException handlerEx) {
+            path = handlerEx.getRequestURL();
+        }
+        log.warn("未找到资源: {}", path);
+        return Result.error(404, path == null ? "请求资源不存在" : "请求资源不存在: " + path);
+    }
+
+    /**
+     * 未知异常兜底
      */
     @ExceptionHandler(Exception.class)
     public Result<?> handleException(Exception e) {
