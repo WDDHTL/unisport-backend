@@ -119,7 +119,7 @@
 
 **注意事项**:
 1. 仅返回与登录用户 `schoolId` 相同的数据。
-2. `isJoined` 由 `invite_members` 计算，不落库。
+2. `isJoined` 必须由后端基于当前登录用户计算：当前用户是 active 成员或发起人则返回 `true`，否则返回 `false`；类型必须为布尔值（不要返回 0/1 或字符串）。
 3. open/full 状态用于前端按钮状态（加入/已满员）。
 
 ---
@@ -384,6 +384,55 @@
 **注意事项**:
 1. 可放开匿名访问，但仅返回同校且未被逻辑删除的 open/full/finished 记录。
 2. 过期/取消返回业务错误或 40401。
+
+---
+
+### 3.10 获取邀请成员列表（成员头像/昵称）
+
+**接口**: `GET /api/invites/{id}/members`
+
+**使用场景**:
+- 邀请详情页展示“已加入成员”列表。
+- 分享/通知落地页单独拉取成员头像、昵称。
+
+**请求参数（Query）**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| current | Integer | 否 | 页码，默认 1 |
+| size | Integer | 否 | 分页大小，默认 20，最大 100 |
+
+**成功响应**:
+
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "records": [
+      {
+        "userId": 101,
+        "role": "host",
+        "status": "active",
+        "joinedAt": "2025-05-18T10:00:00",
+        "leftAt": null,
+        "username": "alice",
+        "nickname": "阿狸",
+        "avatar": "https://example.com/avatar.jpg"
+      }
+    ],
+    "current": 1,
+    "size": 20,
+    "total": 3
+  },
+  "timestamp": 1701234567890
+}
+```
+
+**注意事项**:
+1. 仅返回同校且未逻辑删除的成员；取消/过期邀请返回 40401 或 40021。
+2. `role` 预留 `host`/`member`，`status` 预留 `active`/`left`/`pending`。
+3. 已有详情的前端可单独调用本接口刷新成员头像/昵称，减少重复字段传输。
 
 ---
 

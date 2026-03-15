@@ -1,6 +1,7 @@
 package com.unisport.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import com.unisport.common.UserContext;
 import com.unisport.dto.CreateInviteDTO;
 import com.unisport.dto.InviteListQueryDTO;
 import com.unisport.dto.InviteMineQueryDTO;
+import com.unisport.dto.JoinInviteDTO;
 import com.unisport.entity.Category;
 import com.unisport.entity.Invite;
 import com.unisport.entity.InviteMember;
@@ -19,9 +21,13 @@ import com.unisport.mapper.InviteMapper;
 import com.unisport.mapper.InviteMemberMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.InviteService;
+import com.unisport.vo.InviteDetailVO;
 import com.unisport.vo.InviteListVO;
+import com.unisport.vo.InviteMemberBriefVO;
+import com.unisport.vo.InviteMemberDetailVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +39,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -52,6 +59,7 @@ public class InviteServiceImpl implements InviteService {
 
     private static final int DAILY_CREATE_LIMIT = 20;
     private static final Duration CREATE_LOCK_TTL = Duration.ofSeconds(5);
+    private static final Duration JOIN_LOCK_TTL = Duration.ofSeconds(10);
 
     private final CategoryMapper categoryMapper;
     private final InviteMapper inviteMapper;
@@ -131,7 +139,7 @@ public class InviteServiceImpl implements InviteService {
         boolean excludeExpired = query.getExcludeExpired() == null || query.getExcludeExpired();
         Set<String> statusFilters = parseStatuses(query.getStatus());
 
-        String cacheKey = buildCacheKey(schoolId, query.getCategoryId(), statusFilters, excludeExpired, current, size, query.getOrder());
+        String cacheKey = buildCacheKey(schoolId, query.getCategoryId(), statusFilters, excludeExpired, current, size, query.getOrder(), userId);
         PageResult<InviteListVO> cached = readFromCache(cacheKey);
         if (cached != null) {
             return cached;
@@ -189,6 +197,270 @@ public class InviteServiceImpl implements InviteService {
         List<InviteListVO> records = buildInviteVOs(invitePage.getRecords(), userId);
         return PageResult.of(current, size, invitePage.getTotal(), invitePage.getPages(), records);
     }
+
+    @Override
+    public InviteDetailVO getInviteDetail(Long inviteId) {
+        if (inviteId == null || inviteId <= 0) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        Long userId = UserContext.getUserId();
+        Long schoolId = UserContext.getSchoolId();
+
+        String cacheKey = buildDetailCacheKey(inviteId, userId);
+        InviteDetailVO cached = readDetailFromCache(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+
+        Invite invite = inviteMapper.selectById(inviteId);
+        validateInviteReadable(invite, schoolId);
+
+        List<InviteMember> members = inviteMemberMapper.selectList(
+                new LambdaQueryWrapper<InviteMember>()
+                        .eq(InviteMember::getInviteId, inviteId)
+                        .eq(InviteMember::getStatus, "active")
+                        .orderByAsc(InviteMember::getRole)
+                        .orderByAsc(InviteMember::getJoinedAt)
+        );
+
+        InviteListVO inviteVO = buildInviteVOs(Collections.singletonList(invite), userId)
+                .stream()
+                .findFirst()
+                .orElseGet(InviteListVO::new);
+        InviteDetailVO detail = new InviteDetailVO();
+        detail.setInvite(inviteVO);
+        detail.setMembers(buildMemberBriefs(members));
+        writeDetailToCache(cacheKey, detail);
+        return detail;
+    }
+
+    @Override
+    public PageResult<InviteMemberDetailVO> listInviteMembers(Long inviteId, Integer currentParam, Integer sizeParam) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        if (inviteId == null || inviteId <= 0) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        Long schoolId = resolveSchoolId(userId);
+
+        Invite invite = inviteMapper.selectById(inviteId);
+        validateInviteReadable(invite, schoolId);
+
+        int current = currentParam == null || currentParam <= 0 ? 1 : currentParam;
+        int size = sizeParam == null || sizeParam <= 0 ? 20 : Math.min(sizeParam, 50);
+
+        Page<InviteMember> page = new Page<>(current, size);
+        LambdaQueryWrapper<InviteMember> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InviteMember::getInviteId, inviteId)
+                .eq(InviteMember::getStatus, "active")
+                .orderByAsc(InviteMember::getRole)
+                .orderByAsc(InviteMember::getJoinedAt);
+        Page<InviteMember> memberPage = inviteMemberMapper.selectPage(page, wrapper);
+        List<InviteMember> members = memberPage.getRecords();
+
+        List<InviteMemberDetailVO> records = buildMemberDetails(members);
+        return PageResult.of(current, size, memberPage.getTotal(), memberPage.getPages(), records);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public InviteListVO joinInvite(Long inviteId, JoinInviteDTO request) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        if (inviteId == null || inviteId <= 0) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        Long schoolId = resolveSchoolId(userId);
+
+        String lockKey = buildJoinLockKey(inviteId);
+        if (!acquireJoinLock(lockKey)) {
+            throw new BusinessException(40901, "操作过于频繁，请稍后重试");
+        }
+
+        try {
+            Invite invite = inviteMapper.selectById(inviteId);
+            validateInviteJoinable(invite, schoolId);
+
+            InviteMember existing = findMember(inviteId, userId);
+            if (existing != null && "active".equalsIgnoreCase(existing.getStatus())) {
+                throw new BusinessException(40024, "已加入，无需重复提交");
+            }
+
+            int maxPlayers = invite.getMaxPlayers() == null ? 0 : invite.getMaxPlayers();
+            int joinedCount = invite.getJoinedCount() == null ? 0 : invite.getJoinedCount();
+            if (maxPlayers <= 0) {
+                throw new BusinessException(40004, "队伍配置异常");
+            }
+            if (joinedCount >= maxPlayers) {
+                throw new BusinessException(40022, "邀请已满员");
+            }
+
+            boolean activated = false;
+            boolean inserted = false;
+            if (existing != null) {
+                existing.setStatus("active");
+                existing.setLeftAt(null);
+                existing.setJoinedAt(LocalDateTime.now());
+                int updated = inviteMemberMapper.updateById(existing);
+                if (updated <= 0) {
+                    throw new BusinessException(50001, "更新成员状态失败，请稍后重试");
+                }
+                activated = true;
+            } else {
+                InviteMember member = new InviteMember();
+                member.setInviteId(inviteId);
+                member.setUserId(userId);
+                member.setRole("member");
+                member.setStatus("active");
+                member.setJoinedAt(LocalDateTime.now());
+                try {
+                    inviteMemberMapper.insert(member);
+                    inserted = true;
+                } catch (DuplicateKeyException e) {
+                    log.warn("事务冲突，加入成员行被唯一约束拦截，inviteId={} userId={}", inviteId, userId, e);
+                    InviteMember concurrent = findMember(inviteId, userId);
+                    if (concurrent != null && "active".equalsIgnoreCase(concurrent.getStatus())) {
+                        throw new BusinessException(40024, "已加入，无需重复提交");
+                    }
+                    if (concurrent != null) {
+                        concurrent.setStatus("active");
+                        concurrent.setLeftAt(null);
+                        concurrent.setJoinedAt(LocalDateTime.now());
+                        int updated = inviteMemberMapper.updateById(concurrent);
+                        if (updated <= 0) {
+                            throw new BusinessException(50001, "更新成员状态失败，请稍后重试");
+                        }
+                        activated = true;
+                    } else {
+                        throw new BusinessException(50001, "加入失败，请稍后重试");
+                    }
+                }
+            }
+
+            if (inserted || activated) {
+                updateInviteJoinCount(inviteId, maxPlayers);
+            }
+            evictInviteCaches();
+
+            Invite updated = inviteMapper.selectById(inviteId);
+            return buildInviteVOs(Collections.singletonList(updated), userId)
+                    .stream()
+                    .findFirst()
+                    .orElseGet(InviteListVO::new);
+        } finally {
+            releaseJoinLock(lockKey);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public InviteListVO leaveInvite(Long inviteId) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        if (inviteId == null || inviteId <= 0) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        Long schoolId = resolveSchoolId(userId);
+
+        String lockKey = buildJoinLockKey(inviteId);
+        if (!acquireJoinLock(lockKey)) {
+            throw new BusinessException(40901, "操作过于频繁，请稍后重试");
+        }
+
+        try {
+            Invite invite = inviteMapper.selectById(inviteId);
+            validateInviteAccessible(invite, schoolId);
+            if (userId.equals(invite.getHostId())) {
+                throw new BusinessException(40025, "发起人不可退出");
+            }
+
+            InviteMember member = findMember(inviteId, userId);
+            if (member == null || !"active".equalsIgnoreCase(member.getStatus())) {
+                throw new BusinessException(40901, "尚未加入该邀请");
+            }
+
+            member.setStatus("left");
+            member.setLeftAt(LocalDateTime.now());
+            int updatedMember = inviteMemberMapper.updateById(member);
+            if (updatedMember <= 0) {
+                throw new BusinessException(50001, "更新成员状态失败，请稍后重试");
+            }
+
+            int maxPlayers = invite.getMaxPlayers() == null ? 0 : invite.getMaxPlayers();
+            updateInviteLeaveCount(inviteId, maxPlayers);
+            evictInviteCaches();
+
+            Invite updated = inviteMapper.selectById(inviteId);
+            return buildInviteVOs(Collections.singletonList(updated), userId)
+                    .stream()
+                    .findFirst()
+                    .orElseGet(InviteListVO::new);
+        } finally {
+            releaseJoinLock(lockKey);
+        }
+    }
+
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public InviteListVO cancelInvite(Long inviteId) {
+        Long userId = UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException(40101, "您尚未登录，请先登录");
+        }
+        if (inviteId == null || inviteId <= 0) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        Long schoolId = resolveSchoolId(userId);
+
+        String lockKey = buildJoinLockKey(inviteId);
+        if (!acquireJoinLock(lockKey)) {
+            throw new BusinessException(40901, "操作过于频繁，请稍后重试");
+        }
+
+        try {
+            Invite invite = inviteMapper.selectById(inviteId);
+            validateInviteCancelable(invite, schoolId, userId);
+
+            LocalDateTime now = LocalDateTime.now();
+            inviteMemberMapper.update(
+                    null,
+                    new UpdateWrapper<InviteMember>()
+                            .eq("invite_id", inviteId)
+                            .eq("status", "active")
+                            .set("status", "left")
+                            .set("left_at", now)
+            );
+
+            UpdateWrapper<Invite> updateWrapper = new UpdateWrapper<>();
+            updateWrapper.eq("id", inviteId)
+                    .ne("status", "canceled")
+                    .ne("status", "finished")
+                    .set("status", "canceled")
+                    .set("joined_count", 0);
+            int updatedRows = inviteMapper.update(null, updateWrapper);
+            if (updatedRows <= 0) {
+                throw new BusinessException(40901, "操作冲突，请刷新后重试");
+            }
+
+            evictInviteCaches();
+
+            Invite updatedInvite = inviteMapper.selectById(inviteId);
+            return buildInviteVOs(Collections.singletonList(updatedInvite), userId)
+                    .stream()
+                    .findFirst()
+                    .orElseGet(InviteListVO::new);
+        } finally {
+            releaseJoinLock(lockKey);
+        }
+    }
+
 
     private Category resolveCategoryById(Long categoryId) {
         Integer normalizedId = normalizeCategoryId(categoryId);
@@ -317,6 +589,129 @@ public class InviteServiceImpl implements InviteService {
             return 0L;
         }
     }
+
+    private void validateInviteJoinable(Invite invite, Long schoolId) {
+        if (invite == null || invite.getSchoolId() == null || !invite.getSchoolId().equals(schoolId)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        if (!"open".equalsIgnoreCase(invite.getStatus())) {
+            throw new BusinessException(40021, "邀请已关闭或不可加入");
+        }
+        if (isExpired(invite, LocalDateTime.now())) {
+            throw new BusinessException(40023, "邀请已过期");
+        }
+    }
+
+
+    private void validateInviteAccessible(Invite invite, Long schoolId) {
+        if (invite == null || invite.getSchoolId() == null || !invite.getSchoolId().equals(schoolId)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        if ("canceled".equalsIgnoreCase(invite.getStatus()) || "finished".equalsIgnoreCase(invite.getStatus())) {
+            throw new BusinessException(40021, "邀请已关闭/取消/结束");
+        }
+    }
+
+    private void validateInviteCancelable(Invite invite, Long schoolId, Long userId) {
+        if (invite == null || invite.getSchoolId() == null || !invite.getSchoolId().equals(schoolId)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        if (!userId.equals(invite.getHostId())) {
+            throw new BusinessException(40301, "仅发起人可以操作");
+        }
+        if ("canceled".equalsIgnoreCase(invite.getStatus())) {
+            throw new BusinessException(40901, "邀请已取消");
+        }
+        if ("finished".equalsIgnoreCase(invite.getStatus())) {
+            throw new BusinessException(40021, "邀请已结束或关闭，无法取消");
+        }
+    }
+
+    private void validateInviteReadable(Invite invite, Long schoolId) {
+        if (invite == null || invite.getSchoolId() == null) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        if (schoolId != null && !invite.getSchoolId().equals(schoolId)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        String status = invite.getStatus() == null ? "" : invite.getStatus().toLowerCase();
+        if (!Arrays.asList("open", "full", "finished").contains(status)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+        boolean expired = isExpired(invite, LocalDateTime.now());
+        if (expired && !"finished".equalsIgnoreCase(status)) {
+            throw new BusinessException(40401, "邀请不存在");
+        }
+    }
+
+
+    private InviteMember findMember(Long inviteId, Long userId) {
+        return inviteMemberMapper.selectOne(
+                new LambdaQueryWrapper<InviteMember>()
+                        .eq(InviteMember::getInviteId, inviteId)
+                        .eq(InviteMember::getUserId, userId)
+                        .last("limit 1")
+        );
+    }
+
+    private void updateInviteJoinCount(Long inviteId, int maxPlayers) {
+        UpdateWrapper<Invite> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", inviteId)
+                .eq("status", "open")
+                .apply("IFNULL(joined_count,0) < {0}", maxPlayers);
+        String setSql = "joined_count = IFNULL(joined_count,0) + 1";
+        if (maxPlayers > 0) {
+            setSql += ", status = CASE WHEN IFNULL(joined_count,0) + 1 >= IFNULL(max_players,0) THEN 'full' ELSE status END";
+        }
+        wrapper.setSql(setSql);
+        int updated = inviteMapper.update(null, wrapper);
+        if (updated <= 0) {
+            throw new BusinessException(40901, "名额已满，请刷新后再试");
+        }
+    }
+
+
+    private void updateInviteLeaveCount(Long inviteId, int maxPlayers) {
+        UpdateWrapper<Invite> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", inviteId)
+                .apply("IFNULL(joined_count,0) > 0")
+                .in("status", Arrays.asList("open", "full"));
+
+        String setSql = "joined_count = CASE WHEN IFNULL(joined_count,0) > 0 THEN IFNULL(joined_count,0) - 1 ELSE 0 END";
+        if (maxPlayers > 0) {
+            setSql += ", status = CASE WHEN status = 'full' AND IFNULL(joined_count,0) - 1 < IFNULL(max_players,0) THEN 'open' ELSE status END";
+        }
+        wrapper.setSql(setSql);
+        int updated = inviteMapper.update(null, wrapper);
+        if (updated <= 0) {
+            throw new BusinessException(40901, "操作冲突，请刷新后重试");
+        }
+    }
+
+
+
+    private String buildJoinLockKey(Long inviteId) {
+        return "lock:invite:join:" + inviteId;
+    }
+
+    private boolean acquireJoinLock(String key) {
+        try {
+            Boolean locked = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", JOIN_LOCK_TTL);
+            return Boolean.TRUE.equals(locked);
+        } catch (Exception e) {
+            log.warn("尝试获取加入邀请锁失败，key={}", key, e);
+            return false;
+        }
+    }
+
+    private void releaseJoinLock(String key) {
+        try {
+            stringRedisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("释放加入邀请锁失败，key={}", key, e);
+        }
+    }
+
 
     private Long resolveSchoolId(Long userId) {
         Long schoolId = UserContext.getSchoolId();
@@ -502,7 +897,8 @@ public class InviteServiceImpl implements InviteService {
                 vo.setHostAvatar(host.getAvatar());
             }
 
-            boolean joined = joinedIds.contains(invite.getId()) || currentUserId.equals(invite.getHostId());
+            boolean joined = currentUserId != null
+                    && (joinedIds.contains(invite.getId()) || currentUserId.equals(invite.getHostId()));
             vo.setIsJoined(joined);
 
             String statusForView = resolveStatusForView(invite, now);
@@ -512,7 +908,7 @@ public class InviteServiceImpl implements InviteService {
     }
 
     private Set<Long> resolveJoinedInviteIds(List<Long> inviteIds, Long userId) {
-        if (CollectionUtils.isEmpty(inviteIds)) {
+        if (CollectionUtils.isEmpty(inviteIds) || userId == null) {
             return Collections.emptySet();
         }
         List<InviteMember> members = inviteMemberMapper.selectList(
@@ -526,9 +922,56 @@ public class InviteServiceImpl implements InviteService {
                 .collect(Collectors.toSet());
     }
 
+    private List<InviteMemberBriefVO> buildMemberBriefs(List<InviteMember> members) {
+        if (CollectionUtils.isEmpty(members)) {
+            return Collections.emptyList();
+        }
+        return members.stream().map(member -> {
+            InviteMemberBriefVO vo = new InviteMemberBriefVO();
+            vo.setUserId(member.getUserId());
+            vo.setRole(member.getRole());
+            vo.setStatus(member.getStatus());
+            vo.setJoinedAt(member.getJoinedAt());
+            vo.setLeftAt(member.getLeftAt());
+            return vo;
+        }).collect(Collectors.toList());
+    }
+
+    private List<InviteMemberDetailVO> buildMemberDetails(List<InviteMember> members) {
+        if (CollectionUtils.isEmpty(members)) {
+            return Collections.emptyList();
+        }
+        Set<Long> userIds = members.stream()
+                .map(InviteMember::getUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = Collections.emptyMap();
+        if (!CollectionUtils.isEmpty(userIds)) {
+            List<User> users = userMapper.selectBatchIds(userIds);
+            userMap = users.stream().collect(Collectors.toMap(User::getId, u -> u));
+        }
+
+        Map<Long, User> finalUserMap = userMap;
+        return members.stream().map(member -> {
+            InviteMemberDetailVO vo = new InviteMemberDetailVO();
+            vo.setUserId(member.getUserId());
+            vo.setRole(member.getRole());
+            vo.setStatus(member.getStatus());
+            vo.setJoinedAt(member.getJoinedAt());
+            vo.setLeftAt(member.getLeftAt());
+
+            User user = finalUserMap.get(member.getUserId());
+            if (user != null) {
+                vo.setNickname(user.getNickname());
+                vo.setAvatar(user.getAvatar());
+            }
+            return vo;
+        }).collect(Collectors.toList());
+    }
+
     private String resolveStatusForView(Invite invite, LocalDateTime now) {
         boolean expired = isExpired(invite, now);
-        if (expired) {
+        if (expired && !"finished".equalsIgnoreCase(invite.getStatus())) {
             return "expired";
         }
         String status = invite.getStatus();
@@ -549,14 +992,42 @@ public class InviteServiceImpl implements InviteService {
         return activityDateTime.isBefore(now);
     }
 
-    private String buildCacheKey(Long schoolId, Long categoryId, Set<String> status, boolean excludeExpired, int current, int size, String order) {
+    private String buildDetailCacheKey(Long inviteId, Long userId) {
+        String userPart = userId == null ? "anon" : userId.toString();
+        return String.format("invite:detail:%d:%s", inviteId, userPart);
+    }
+
+    private InviteDetailVO readDetailFromCache(String cacheKey) {
+        try {
+            String cached = stringRedisTemplate.opsForValue().get(cacheKey);
+            if (!StringUtils.hasText(cached)) {
+                return null;
+            }
+            return objectMapper.readValue(cached, InviteDetailVO.class);
+        } catch (Exception e) {
+            log.warn("读取邀请详情缓存失败，key={}", cacheKey, e);
+            return null;
+        }
+    }
+
+    private void writeDetailToCache(String cacheKey, InviteDetailVO value) {
+        try {
+            String json = objectMapper.writeValueAsString(value);
+            stringRedisTemplate.opsForValue().set(cacheKey, json, Duration.ofSeconds(45));
+        } catch (Exception e) {
+            log.warn("写入邀请详情缓存失败，key={}", cacheKey, e);
+        }
+    }
+
+    private String buildCacheKey(Long schoolId, Long categoryId, Set<String> status, boolean excludeExpired, int current, int size, String order, Long userId) {
         String statusPart = CollectionUtils.isEmpty(status)
                 ? "open"
                 : status.stream().sorted().collect(Collectors.joining("-"));
         String categoryPart = categoryId == null ? "all" : categoryId.toString();
         String orderPart = StringUtils.hasText(order) ? order.trim().toLowerCase() : "created_at desc";
-        return String.format("invite:list:%s:%s:%s:%s:%d:%d:%s",
-                schoolId, categoryPart, statusPart, excludeExpired, current, size, orderPart);
+        String userPart = userId == null ? "anon" : userId.toString();
+        return String.format("invite:list:%s:%s:%s:%s:%d:%d:%s:%s",
+                schoolId, categoryPart, statusPart, excludeExpired, current, size, orderPart, userPart);
     }
 
     private PageResult<InviteListVO> readFromCache(String cacheKey) {

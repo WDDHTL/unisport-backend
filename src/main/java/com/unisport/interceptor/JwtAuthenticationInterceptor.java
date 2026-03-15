@@ -8,13 +8,18 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationInterceptor implements HandlerInterceptor {
+
+    private static final Pattern INVITE_DETAIL_PATTERN = Pattern.compile("^/invites/\\d+/?$");
 
     private final JwtProperties jwtProperties;
 
@@ -29,13 +34,17 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
             return true;
         }
 
+        boolean optionalAuth = isOptionalAuthPath(path, request.getMethod());
         if (isWhitelist(path, request.getMethod())) {
             return true;
         }
 
         String authHeader = request.getHeader("Authorization");
         log.info("收到请求 - URI: {}, Method: {}, Authorization: {}", requestUri, request.getMethod(), authHeader != null ? "存在" : "不存在");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            if (optionalAuth) {
+                return true;
+            }
             log.warn("未登录或Authorization头部缺失，请求路径：{}", requestUri);
             throw new BusinessException(40101, "您尚未登录，请先登录");
         }
@@ -54,6 +63,10 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
             UserContext.setCurrentUser(userId, schoolId);
             return true;
         } catch (RuntimeException e) {
+            if (optionalAuth) {
+                log.warn("Token解析或校验失败，将以匿名访问，请求路径：{}，原因：{}", requestUri, e.getMessage());
+                return true;
+            }
             log.warn("Token解析或校验失败，请求路径：{}，原因：{}", requestUri, e.getMessage());
             throw new BusinessException(40101, "登录状态已失效，请重新登录");
         }
@@ -86,5 +99,12 @@ public class JwtAuthenticationInterceptor implements HandlerInterceptor {
             return true;
         }
         return false;
+    }
+
+    private boolean isOptionalAuthPath(String uri, String method) {
+        if (!"GET".equalsIgnoreCase(method)) {
+            return false;
+        }
+        return INVITE_DETAIL_PATTERN.matcher(uri).matches();
     }
 }
