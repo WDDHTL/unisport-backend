@@ -6,13 +6,21 @@ import com.unisport.common.BusinessException;
 import com.unisport.common.PageResult;
 import com.unisport.common.UserContext;
 import com.unisport.dto.UpdateUserDTO;
+import com.unisport.entity.Department;
 import com.unisport.entity.Post;
+import com.unisport.entity.School;
 import com.unisport.entity.User;
+import com.unisport.entity.UserEducation;
 import com.unisport.entity.UserFollow;
+import com.unisport.config.JwtProperties;
+import com.unisport.mapper.DepartmentMapper;
 import com.unisport.mapper.PostMapper;
+import com.unisport.mapper.SchoolMapper;
 import com.unisport.mapper.UserFollowMapper;
+import com.unisport.mapper.UserEducationMapper;
 import com.unisport.mapper.UserMapper;
 import com.unisport.service.UserService;
+import com.unisport.utils.AesUtil;
 import com.unisport.vo.FollowUserVO;
 import com.unisport.vo.UserProfileVO;
 import lombok.RequiredArgsConstructor;
@@ -38,9 +46,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    private static final String EDUCATION_STATUS_VERIFIED = "verified";
+
     private final UserMapper userMapper;
     private final UserFollowMapper userFollowMapper;
     private final PostMapper postMapper;
+    private final UserEducationMapper userEducationMapper;
+    private final SchoolMapper schoolMapper;
+    private final DepartmentMapper departmentMapper;
+    private final JwtProperties jwtProperties;
 
     @Override
     public UserProfileVO getUserProfile(Long userId) {
@@ -64,6 +78,7 @@ public class UserServiceImpl implements UserService {
         Long postsCount = postMapper.selectCount(
                 new LambdaQueryWrapper<Post>()
                         .eq(Post::getUserId, userId)
+                        .eq(Post::getDeleted, 0)
         );
 
         boolean isFollowing = false;
@@ -77,13 +92,29 @@ public class UserServiceImpl implements UserService {
             isFollowing = relationCount != null && relationCount > 0;
         }
 
+        UserEducation primaryEducation = findPrimaryEducation(userId);
+        Long primarySchoolId = primaryEducation != null ? primaryEducation.getSchoolId() : null;
+        String schoolName = null;
+        String departmentName = null;
+        if (primarySchoolId != null) {
+            School school = schoolMapper.selectById(primarySchoolId);
+            schoolName = school != null ? school.getName() : null;
+        }
+        if (primaryEducation != null && primaryEducation.getDepartmentId() != null) {
+            Department department = departmentMapper.selectById(primaryEducation.getDepartmentId());
+            departmentName = department != null ? department.getName() : null;
+        }
+
+        String decryptedWechat = decryptWechat(targetUser.getWechatId());
+
         return UserProfileVO.builder()
                 .id(targetUser.getId())
                 .nickname(targetUser.getNickname())
                 .avatar(targetUser.getAvatar())
-//                .school(targetUser.getSchool())
-                .schoolId(targetUser.getSchoolId())
-//                .department(targetUser.getDepartment())
+                .wechatId(decryptedWechat)
+                .school(schoolName)
+                .schoolId(primarySchoolId)
+                .department(departmentName)
                 .bio(targetUser.getBio())
                 .gender(targetUser.getGender())
                 .followersCount(followersCount)
@@ -132,11 +163,16 @@ public class UserServiceImpl implements UserService {
             }
             updateEntity.setGender(gender);
         }
+        if (updateUserDTO.getWechatId() != null) {
+            String wechatId = updateUserDTO.getWechatId().trim();
+            updateEntity.setWechatId(wechatId.isEmpty() ? null : encryptWechat(wechatId));
+        }
 
         boolean hasChanges = updateEntity.getNickname() != null
                 || updateEntity.getAvatar() != null
                 || updateEntity.getBio() != null
-                || updateEntity.getGender() != null;
+                || updateEntity.getGender() != null
+                || updateEntity.getWechatId() != null;
         if (!hasChanges) {
             return getUserProfile(userId);
         }
@@ -262,6 +298,52 @@ public class UserServiceImpl implements UserService {
                 .collect(Collectors.toList());
 
         return PageResult.of(pageNum, pageSize, page.getTotal(), page.getPages(), records);
+    }
+
+    private UserEducation findPrimaryEducation(Long userId) {
+        UserEducation primary = userEducationMapper.selectOne(
+                new LambdaQueryWrapper<UserEducation>()
+                        .eq(UserEducation::getUserId, userId)
+                        .eq(UserEducation::getDeleted, 0)
+                        .eq(UserEducation::getStatus, EDUCATION_STATUS_VERIFIED)
+                        .eq(UserEducation::getIsPrimary, true)
+                        .last("LIMIT 1")
+        );
+        if (primary != null) {
+            return primary;
+        }
+        return userEducationMapper.selectOne(
+                new LambdaQueryWrapper<UserEducation>()
+                        .eq(UserEducation::getUserId, userId)
+                        .eq(UserEducation::getDeleted, 0)
+                        .eq(UserEducation::getStatus, EDUCATION_STATUS_VERIFIED)
+                        .orderByDesc(UserEducation::getCreatedAt)
+                        .last("LIMIT 1")
+        );
+    }
+
+    private String decryptWechat(String encryptedWechat) {
+        if (encryptedWechat == null || encryptedWechat.isEmpty()) {
+            return null;
+        }
+        try {
+            return AesUtil.decrypt(encryptedWechat, jwtProperties.getSecret());
+        } catch (Exception e) {
+            log.warn("解密微信号失败，已忽略此字段", e);
+            return null;
+        }
+    }
+
+    private String encryptWechat(String wechatId) {
+        if (wechatId == null || wechatId.isEmpty()) {
+            return null;
+        }
+        try {
+            return AesUtil.encrypt(wechatId, jwtProperties.getSecret());
+        } catch (Exception e) {
+            log.warn("加密微信号失败", e);
+            throw new BusinessException(50001, "微信号加密失败，请稍后重试");
+        }
     }
 
     private void validateTargetUser(Long targetUserId, Long currentUserId) {

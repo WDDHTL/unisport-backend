@@ -74,6 +74,10 @@ public class User implements Serializable {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /** WeChat ID (optional) */
+    @TableField("wechat_id")
+    private String wechatId;
+
     /** Logical delete flag */
     @TableLogic
     private Integer deleted;

@@ -30,6 +30,9 @@ public class UserProfileVO implements Serializable {
     @Schema(description = "头像URL", example = "https://example.com/avatar.jpg")
     private String avatar;
 
+    @Schema(description = "微信号（可为空表示未展示）", example = "lisi_wechat")
+    private String wechatId;
+
     @Schema(description = "学校名称", example = "清华大学")
     private String school;
 

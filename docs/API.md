@@ -265,6 +265,7 @@ Authorization: Bearer <JWT Token>
     "id": 2,
     "nickname": "李四",
     "avatar": "https://example.com/avatar.jpg",
+    "wechatId": "lisi_wechat",
     "school": "清华大学",
     "schoolId": 1,
     "department": "经管学院",
@@ -278,7 +279,9 @@ Authorization: Bearer <JWT Token>
 }
 ```
 
-> gender 为整数：1=男性，0=女性。
+**字段说明**:
+- `gender`：整数类型，1=男性，0=女性。
+- `wechat`：字符串，可选；为空或缺省表示未展示微信号。
 
 ---
 
@@ -297,12 +300,14 @@ Authorization: Bearer <JWT Token>
 {
   "nickname": "张三丰",
   "avatar": "https://example.com/avatar.jpg",
+  "wechatId": "uni_sport_user",
   "bio": "热爱运动",
   "gender": 1
 }
 ```
 
 **字段说明**:
+- `wechat`：字符串，微信号（最长 64 字符），可选；留空表示不展示或清空之前的微信号。
 - `gender`：整数类型，1=男性，0=女性。
 
 **注意事项**:

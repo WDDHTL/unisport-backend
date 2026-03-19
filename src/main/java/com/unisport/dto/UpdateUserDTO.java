@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -30,6 +31,14 @@ public class UpdateUserDTO implements Serializable {
     @Schema(description = "头像URL", example = "https://example.com/avatar.jpg")
     @Size(max = 255, message = "头像URL长度不能超过255个字符")
     private String avatar;
+
+    /**
+     * 微信号（可选）
+     */
+    @Schema(description = "微信号（可选，留空表示不展示或清空）", example = "uni_sport_user")
+    @Size(max = 64, message = "微信号长度不能超过64个字符")
+    @JsonAlias({"wechat", "wechatId"})
+    private String wechatId;
 
     /**
      * 个人简介
