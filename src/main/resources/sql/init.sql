@@ -49,7 +49,30 @@ CREATE TABLE `user_follows` (
     FOREIGN KEY (`following_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户关注关系表';
 
--- 教育经历表
+-- ???????
+DROP TABLE IF EXISTS `wechat_exchange_requests`;
+CREATE TABLE `wechat_exchange_requests` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '??ID',
+    `requester_id` BIGINT NOT NULL COMMENT '?????ID',
+    `target_id` BIGINT NOT NULL COMMENT '?????ID',
+    `status` VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT '???pending/accepted/rejected/cancelled/expired',
+    `source` VARCHAR(32) DEFAULT NULL COMMENT '????',
+    `requester_wechat_snapshot` VARCHAR(128) NOT NULL COMMENT '?????????????',
+    `target_wechat_snapshot` VARCHAR(128) DEFAULT NULL COMMENT '?????????????',
+    `respond_message` VARCHAR(255) DEFAULT NULL COMMENT '????/??',
+    `expired_at` DATETIME NOT NULL COMMENT '????',
+    `responded_at` DATETIME DEFAULT NULL COMMENT '????',
+    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '????',
+    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '????',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_requester_target_status` (`requester_id`, `target_id`, `status`),
+    KEY `idx_target_status_created` (`target_id`, `status`, `created_at`),
+    KEY `idx_requester_status_created` (`requester_id`, `status`, `created_at`),
+    CONSTRAINT `fk_wechat_requester` FOREIGN KEY (`requester_id`) REFERENCES `users`(`id`),
+    CONSTRAINT `fk_wechat_target` FOREIGN KEY (`target_id`) REFERENCES `users`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='???????';
+
+-- ?????
 DROP TABLE IF EXISTS `user_educations`;
 CREATE TABLE `user_educations` (
     `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '教育经历ID',

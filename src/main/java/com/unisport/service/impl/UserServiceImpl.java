@@ -105,7 +105,11 @@ public class UserServiceImpl implements UserService {
             departmentName = department != null ? department.getName() : null;
         }
 
-        String decryptedWechat = decryptWechat(targetUser.getWechatId());
+        Long currentUserId = UserContext.getUserId();
+        // Only expose wechatId to the owner; others must rely on the exchange flow.
+        String decryptedWechat = (currentUserId != null && currentUserId.equals(userId))
+                ? decryptWechat(targetUser.getWechatId())
+                : null;
 
         return UserProfileVO.builder()
                 .id(targetUser.getId())
@@ -257,7 +261,6 @@ public class UserServiceImpl implements UserService {
             resolvedUserMap = Collections.emptyMap();
         }
 
-        Long currentUserId = UserContext.getUserId();
         Set<Long> resolvedFollowings;
         if (!CollectionUtils.isEmpty(followingIds) && currentUserId != null) {
             if (currentUserId.equals(userId)) {

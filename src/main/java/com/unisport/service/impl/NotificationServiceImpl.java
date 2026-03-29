@@ -146,7 +146,7 @@ public class NotificationServiceImpl implements NotificationService {
         try {
             return NotifyType.valueOf(type.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
-            throw new BusinessException(40004, "通知类型不合法，请确认为 like/comment/follow/system/all");
+            throw new BusinessException(40004, "通知类型不合法，请确认为 like/comment/follow/system/wechat_exchange_request/wechat_exchange_accept/wechat_exchange_reject/all");
         }
     }
 

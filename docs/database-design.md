@@ -1022,6 +1022,56 @@
 
 ---
 
+#### 3.5 wechat_exchange_requests（微信交换请求表）
+
+用户之间申请互换微信号的记录。
+
+**使用场景：**
+> 🤝 **微信互换流程** - 记录发起、接受、拒绝、撤销、过期全流程
+> 
+> **应用场景：**
+> 1. **发起请求**：A 向 B 发起互换微信号请求，写入待处理记录
+> 2. **防重复申请**：同一双方在 pending 状态下禁止重复创建（唯一索引）
+> 3. **处理请求**：B 接受/拒绝时写入目标微信号快照或拒绝说明
+> 4. **到期刷新**：超时自动置为 expired，避免长期 pending
+> 5. **列表/详情**：按 requester/target 查询“我发起的 / 我收到的”请求列表与详情
+
+**字段设计：**
+
+| 字段名 | 数据类型 | 约束 | 说明 |
+|--------|---------|------|------|
+| id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 记录ID |
+| requester_id | BIGINT | NOT NULL | 发起方用户ID |
+| target_id | BIGINT | NOT NULL | 接收方用户ID |
+| status | VARCHAR(20) | NOT NULL, DEFAULT 'pending' | 状态：pending/accepted/rejected/cancelled/expired |
+| source | VARCHAR(32) | NULL | 来源标记，如 profile、post_detail |
+| requester_wechat_snapshot | VARCHAR(128) | NOT NULL | 发起时的微信号快照（加密存储） |
+| target_wechat_snapshot | VARCHAR(128) | NULL | 接收方同意时的微信号快照（加密存储） |
+| respond_message | VARCHAR(255) | NULL | 处理说明或拒绝原因 |
+| expired_at | DATETIME | NOT NULL | 过期时间 |
+| responded_at | DATETIME | NULL | 处理时间 |
+| created_at | DATETIME | DEFAULT CURRENT_TIMESTAMP | 创建时间 |
+| updated_at | DATETIME | DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+
+**索引：**
+- PRIMARY KEY (id)
+- UNIQUE KEY uk_requester_target_status (requester_id, target_id, status)  -- 防止同一双方重复 pending
+- INDEX idx_target_status_created (target_id, status, created_at)
+- INDEX idx_requester_status_created (requester_id, status, created_at)
+
+**外键：**
+- FOREIGN KEY (requester_id) REFERENCES users(id)
+- FOREIGN KEY (target_id) REFERENCES users(id)
+
+**设计说明：**
+> ⏱️ **有效期**：后端默认 72 小时过期，过期后状态置为 expired，防止列表长期堆积
+> 
+> 🔒 **快照加密**：微信号以加密快照形式保存，避免明文泄漏
+> 
+> 🔁 **去重策略**：pending 状态唯一索引约束，避免重复发送同一请求；非 pending 状态允许再次发起
+
+---
+
 ### 4. 消息通知模块
 
 #### 4.1 notifications（通知表）
@@ -1040,18 +1090,23 @@
 > 6. **未读消息**：显示未读消息数量的小红点
 > 7. **消息分类**：按通知类型筛选查看
 > 8. **消息跳转**：点击通知跳转到相关内容（帖子/评论/用户）
+> 9. **微信互换通知**：微信交换请求、同意、拒绝的推送
 > 
 > **通知类型：**
 > - **like**：点赞通知（帖子或评论被点赞）
 > - **comment**：评论通知（帖子被评论或评论被回复）
 > - **follow**：关注通知（被他人关注）
 > - **system**：系统通知（公告、活动等）
+> - **wechat_exchange_request**：微信交换请求
+> - **wechat_exchange_accept**：微信交换同意
+> - **wechat_exchange_reject**：微信交换拒绝
 > 
 > **关联对象：**
 > - **post**：关联到帖子
 > - **comment**：关联到评论
 > - **user**：关联到用户
 > - **match**：关联到比赛
+> - **wechat_exchange**：关联到微信交换请求
 > 
 > **典型操作：**
 > - 发送通知：INSERT 新通知记录
@@ -1067,8 +1122,8 @@
 | id | BIGINT | PRIMARY KEY, AUTO_INCREMENT | 通知ID |
 | user_id | BIGINT | NOT NULL | 接收用户ID |
 | sender_id | BIGINT | NULL | 发送者ID |
-| type | ENUM('like','comment','follow','system') | NOT NULL | 通知类型 |
-| related_type | ENUM('post','comment','user','match') | NULL | 关联对象类型 |
+| type | ENUM('like','comment','follow','system','wechat_exchange_request','wechat_exchange_accept','wechat_exchange_reject') | NOT NULL | 通知类型 |
+| related_type | ENUM('post','comment','user','match','wechat_exchange') | NULL | 关联对象类型 |
 | related_id | BIGINT | NULL | 关联对象ID |
 | content | VARCHAR(500) | NOT NULL | 通知内容 |
 | is_read | TINYINT | DEFAULT 0 | 是否已读（1:已读 0:未读） |

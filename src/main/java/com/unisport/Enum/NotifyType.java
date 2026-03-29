@@ -6,7 +6,10 @@ public enum NotifyType implements IEnum<String> {
     LIKE("like"),
     COMMENT("comment"),
     FOLLOW("follow"),
-    SYSTEM("system");
+    SYSTEM("system"),
+    WECHAT_EXCHANGE_REQUEST("wechat_exchange_request"),
+    WECHAT_EXCHANGE_ACCEPT("wechat_exchange_accept"),
+    WECHAT_EXCHANGE_REJECT("wechat_exchange_reject");
 
     private final String value;
 

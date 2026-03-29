@@ -6,7 +6,8 @@ public enum RelatedType implements IEnum<String> {
     POST("post"),
     COMMENT("comment"),
     USER("user"),
-    MATCH("match");
+    MATCH("match"),
+    WECHAT_EXCHANGE("wechat_exchange");
 
     private final String value;
 
